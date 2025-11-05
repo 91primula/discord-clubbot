@@ -168,17 +168,16 @@ async def ensure_welcome_messages(guild: discord.Guild):
 
 @bot.event
 async def on_ready():
-    print(f"✅ 로그인 완료: {bot.user}")
+    print(f"✅ 로그인 완료: {bot.user} ({bot.user.id})")
     try:
         guild = discord.Object(id=GUILD_ID)
-        synced = await bot.tree.sync(guild=guild)  # 🔹 특정 서버에 강제 동기화
-        print(f"🌐 슬래시 명령어 동기화 완료 ({len(synced)}개)")
-        # 🔹 환영/승급/라디오 안내 메시지 자동 고정
-        for g in bot.guilds:
-            if g.id == GUILD_ID:
-                await ensure_welcome_messages(g)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"🌐 {len(synced)}개의 명령어가 {GUILD_ID} 서버에 동기화되었습니다.")
+        for cmd in synced:
+            print(f"  └ /{cmd.name} - {cmd.description}")
     except Exception as e:
         print(f"❌ 슬래시 명령어 동기화 실패: {e}")
+
 
 
 
