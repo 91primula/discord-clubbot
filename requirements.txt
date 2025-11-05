@@ -1,0 +1,4 @@
+discord.py>=2.3.2
+yt-dlp>=2025.7.6
+python-dotenv
+PyNaCl
