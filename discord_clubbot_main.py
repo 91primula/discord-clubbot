@@ -122,7 +122,7 @@ async def ensure_welcome_messages(guild: discord.Guild):
                 '🪖 쟁탈원으로 승급하기 위해서는\n'
                 '🪖 운영진이 안내해준 승인인증 코드를 입력해주시기 바랍니다.'
             )
-            pinned = [m async for m in ch.pins()]
+            pinned = await ch.pins()
             if not any('쟁탈원으로 승급하기 위해서는' in (m.content or '') for m in pinned):
                 msg = await ch.send(content)
                 try:
