@@ -147,7 +147,7 @@ async def ensure_welcome_messages(guild: discord.Guild):
                 '⛔ /정지 : 재생 중지 + 음성채널 퇴장\n\n'
                 '⭐ 명령어 실행 전 봇 아이콘 확인 후 사용'
             )
-            pinned = [m async for m in ch.pins()]
+            pinned = await ch.pins()
             if not any('📡✨ 라디오봇 접속 완료!' in (m.content or '') for m in pinned):
                 view = View(timeout=None)
                 view.add_item(Button(label='MBC 표준FM', custom_id='play_mbc'))
