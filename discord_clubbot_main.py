@@ -273,11 +273,11 @@ class VoicePlayer:
 voice_player = VoicePlayer()
 
 RADIO_URLS = {
-    'mbc': 'http://vod.imbc.com/servlet/getAudio?type=live&ch=standard',
-    'fm4u': 'http://example.com/fm4u_stream',
-    'sbs_love': 'http://example.com/sbs_love',
-    'sbs_power': 'http://example.com/sbs_power',
-    'cbs': 'http://example.com/cbs_music',
+    'mbc': 'https://minisw.imbc.com/dsfm/_definst_/sfm.stream/playlist.m3u8?_lsu_sa_=67A1D91483F53A74F44145103B61D041F5783835A00C326E3B7059a0768B39E69AaB435137E2F64A009534D1FAb4C16EABD96878E7BC0619921152E8E7EBFA931B98327E0489D778A4F3C574C9FEC7FB758F680E766F6EF2502994C223A3FD615A1C1E1FDE8F18BBC61C0DCA3ECFAD04',
+    'fm4u': 'https://minimw.imbc.com/dmfm/_definst_/mfm.stream/playlist.m3u8?_lsu_sa_=6A11AB1DB3A739D4DA4B55B13B712A47350D3C95500FB2123270F4a9D64E322699a9A3273D325249E0CC39E12FbCA1C7864BAF1C2B179F0ACD0C01522928E2C8F565B89E342A5EACC78FE208B80AE1FE6C864F4B28E1D0E70172AC45367E4814BF8F4A2D445F6B7ACED29B6CFEE6E70E',
+    'sbs_love': 'https://radiolive.sbs.co.kr/lovepc/lovefm.stream/playlist.m3u8?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NjIwMzcxNzMsInBhdGgiOiIvbG92ZWZtLnN0cmVhbSIsImR1cmF0aW9uIjotMSwidW5vIjoiYWIyMTlhZmMtMWIxNC00ODczLWI1MDktOTNmYjNjZTljYjgwIiwiaWF0IjoxNzYxOTkzOTczfQ.ebt9XpFVApTFX_T_fTCqNZvgv24XxwFlCso27Gm522I',
+    'sbs_power': 'https://radiolive.sbs.co.kr/powerpc/powerfm.stream/playlist.m3u8?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NjIwMzcxODUsInBhdGgiOiIvcG93ZXJmbS5zdHJlYW0iLCJkdXJhdGlvbiI6LTEsInVubyI6IjhlMDMwOWYzLTE0NmItNDg5MC05ZDRlLTU3YzU4NDJkZWQ4YyIsImlhdCI6MTc2MTk5Mzk4NX0.YhsR4d864lBc9DajabAbHHu4WewCBxpOgK_quJxcUIM',
+    'cbs': 'https://m-aac.cbs.co.kr/mweb_cbs939/_definst_/cbs939.stream/chunklist.m3u8',
 }
 
 async def extract_audio_url(youtube_url: str):
