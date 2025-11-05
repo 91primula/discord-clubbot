@@ -16,8 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 봇 코드 복사
 COPY discord_clubbot_main.py .
 
-# 환경변수 파일 (.env) 포함
-COPY .env .
-
 # 실행
 CMD ["python", "discord_clubbot_main.py"]
