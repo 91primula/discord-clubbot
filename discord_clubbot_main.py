@@ -106,7 +106,7 @@ async def ensure_welcome_messages(guild: discord.Guild):
                 '버튼을 눌러 바로 /NICK 명령어를 실행하세요.\n'
                 '🎊🎊🎊'
             )
-            pinned = [m async for m in ch.pins()]
+            pinned = await ch.pins()
             if not any('삐약 디스코드 서버에 오신 것을 환영합니다' in (m.content or '') for m in pinned):
                 msg = await ch.send(content, view=NickButtonView())
                 try:
