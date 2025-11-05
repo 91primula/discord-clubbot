@@ -164,17 +164,17 @@ async def ensure_welcome_messages(guild: discord.Guild):
 # ────────────────────────────────
 # ✅ on_ready
 # ────────────────────────────────
+
+
 @bot.event
 async def on_ready():
-    print(f'✅ Logged in as {bot.user} (id: {bot.user.id})')
-    if GUILD_ID:
-        guild = bot.get_guild(GUILD_ID)
-        if guild:
-            await ensure_welcome_messages(guild)
+    print(f"✅ 로그인 완료: {bot.user}")
     try:
-        await bot.tree.sync(guild=discord.Object(id=GUILD_ID) if GUILD_ID else None)
-    except Exception:
-        pass
+        synced = await bot.tree.sync()
+        print(f"🌐 슬래시 명령어 동기화 완료 ({len(synced)}개)")
+    except Exception as e:
+        print(f"❌ 슬래시 명령어 동기화 실패: {e}")
+
 
 # ────────────────────────────────
 # ✅ 코드 입력 처리 (가입/승급)
@@ -382,3 +382,6 @@ if __name__ == '__main__':
         print('❌ DISCORD_TOKEN not set in .env')
         raise SystemExit(1)
     bot.run(TOKEN)
+
+
+
