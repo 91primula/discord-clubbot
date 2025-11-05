@@ -138,7 +138,7 @@ async def ensure_welcome_messages(guild: discord.Guild):
                 '📻 /sbs러브fm : SBS 러브FM 재생\n'
                 '📻 /sbs파워fm : SBS 파워FM 재생\n'
                 '📻 /cbs음악fm : CBS 음악FM 재생\n'
-                '🎧 /youtube_URL : URL 링크 이용 유튜브 링크 재생\n'
+                '🎧 /youtube_url : URL 링크 이용 유튜브 링크 재생\n'
                 '🎧 /youtube_검색 : 키워드 검색어 이용 재생/검색 후 첫 영상을 재생함\n'
                 '⛔ /정지 : 재생 중지 + 음성채널 퇴장\n\n'
                 '⭐ 모든 봇 실행할 때는 명렁어상 아이콘 확인 후 실행'
@@ -321,7 +321,7 @@ async def cmd_sbs_power(interaction: discord.Interaction):
 async def cmd_cbs(interaction: discord.Interaction):
     await voice_player.join_and_play(interaction, RADIO_URLS.get('cbs', ''), title='CBS 음악FM')
 
-@bot.tree.command(name='youtube_URL', description='유튜브 URL 재생')
+@bot.tree.command(name='youtube_url', description='유튜브 URL 재생')
 @app_commands.describe(url='YouTube 영상 URL')
 async def cmd_youtube_url(interaction: discord.Interaction, url: str):
     await interaction.response.defer()
