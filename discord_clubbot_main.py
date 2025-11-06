@@ -1,5 +1,5 @@
 # Discord ClubBot - 통합 가입/승급/라디오 관리봇
-# 파일명: discord_clubbot.py
+# 파일명: discord_clubbot_main.py
 # 사용법: 환경변수 설정 후 `python discord_clubbot.py` 실행
 
 import os
