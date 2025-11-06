@@ -1,392 +1,276 @@
-# ───────────────────────────────────────────────────────────
-# Discord ClubBot - 통합 가입/승급/라디오 관리봇 (2025 최신 수정판)
-# discord_clubbot_main.py
-# ───────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────
+# 🎛 Discord ClubBot (가입인증 + 승급 + 라디오 + 유튜브)
+# 🔄 2025-11 최신 완성본 (cookies.txt + 제어버튼 + 자동등록 통합)
+# ────────────────────────────────────────────────
+
 import os
 import asyncio
-from dotenv import load_dotenv
 import discord
-from discord import app_commands
 from discord.ext import commands
+from discord import app_commands, ButtonStyle
+from discord.ui import View, Button
+from dotenv import load_dotenv
 import yt_dlp
-from discord.ui import View, Button, Modal, TextInput
 
-# ────────────────────────────────
-# ✅ 환경 변수 로드
-# ────────────────────────────────
+# ────────────────────────────────────────────────
+# ✅ 환경 변수
+# ────────────────────────────────────────────────
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
-GUILD_ID = int(os.getenv('GUILD_ID', '0'))
-CHANNEL_JOIN_ID = int(os.getenv('CHANNEL_JOIN_ID', '0'))
-CHANNEL_PROMOTE_ID = int(os.getenv('CHANNEL_PROMOTE_ID', '0'))
-CHANNEL_RADIO_ID = int(os.getenv('CHANNEL_RADIO_ID', '0'))
+TOKEN = os.getenv("DISCORD_TOKEN")
+GUILD_ID = int(os.getenv("GUILD_ID", 0))
+CHANNEL_JOIN_ID = int(os.getenv("CHANNEL_JOIN_ID", 0))
+CHANNEL_PROMOTE_ID = int(os.getenv("CHANNEL_PROMOTE_ID", 0))
+CHANNEL_RADIO_ID = int(os.getenv("CHANNEL_RADIO_ID", 0))
+COOKIES_FILE = os.getenv("COOKIES_FILE", None)
 
-JOIN_CODE = os.getenv('JOIN_CODE', '241120')
-PROMOTE_CODE = os.getenv('PROMOTE_CODE', '021142')
-JOIN_ROLE_NAME = os.getenv('JOIN_ROLE_NAME', '클럽원')
-PROMOTE_ROLE_NAME = os.getenv('PROMOTE_ROLE_NAME', '쟁탈원')
-
-intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True
-intents.members = True
-
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-# ────────────────────────────────
-# ✅ 유틸 함수
-# ────────────────────────────────
-async def add_role_by_name(guild: discord.Guild, member: discord.Member, role_name: str):
-    role = discord.utils.get(guild.roles, name=role_name)
-    if role is None:
-        try:
-            role = await guild.create_role(name=role_name)
-        except Exception:
-            return False
-    try:
-        await member.add_roles(role, reason='인증 코드 입력')
-        return True
-    except Exception:
-        return False
-
-
-async def delete_non_pinned(channel: discord.TextChannel):
-    try:
-        async for m in channel.history(limit=200):
-            if not m.pinned and not m.type in (discord.MessageType.pins_add,):
-                try:
-                    await m.delete()
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-# ────────────────────────────────
-# ✅ 별명 변경 Modal & Button
-# ────────────────────────────────
-class NickModal(Modal, title='별명 변경'):
-    nick = TextInput(label='바꿀 별명', placeholder='원하시는 별명을 입력하세요', max_length=32)
-
-    def __init__(self, member: discord.Member):
-        super().__init__()
-        self.member = member
-
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            await self.member.edit(nick=self.nick.value, reason='사용자 요청 별명 변경')
-            await interaction.response.send_message(f'✅ 별명이 `{self.nick.value}`(으)로 변경되었습니다.', ephemeral=True)
-        except discord.Forbidden:
-            await interaction.response.send_message('❌ 권한 부족: 별명을 변경할 수 없습니다.', ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f'오류: {e}', ephemeral=True)
-
-
-class NickButtonView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label='별명 변경', style=discord.ButtonStyle.primary, custom_id='nick_btn')
-    async def nick_button(self, interaction: discord.Interaction, button: Button):
-        modal = NickModal(interaction.user)
-        await interaction.response.send_modal(modal)
-
-# ────────────────────────────────
-# ✅ 환영/승급/라디오 고정메시지
-# ────────────────────────────────
-async def ensure_welcome_messages(guild: discord.Guild):
-    # 가입 안내
-    if CHANNEL_JOIN_ID:
-        ch = guild.get_channel(CHANNEL_JOIN_ID)
-        if ch:
-            content = (
-                '🎊삐약 디스코드 서버에 오신 것을 환영합니다!\n'
-                '🎊✨운영진 또는 오픈톡 공지사항에 있는 디스코드 인증코드를 채팅으로 남겨주세요!\n'
-                '🎊🎊🎊\n'
-                '🪪✨ 별명 변경 안내\n'
-                '버튼을 눌러 바로 /NICK 명령어를 실행하세요.\n'
-                '🎊🎊🎊'
-            )
-            pinned = await ch.pins()
-            if not any('삐약 디스코드 서버에 오신 것을 환영합니다' in (m.content or '') for m in pinned):
-                msg = await ch.send(content, view=NickButtonView())
-                try:
-                    await msg.pin()
-                except Exception:
-                    pass
-
-    # 승급 안내
-    if CHANNEL_PROMOTE_ID:
-        ch = guild.get_channel(CHANNEL_PROMOTE_ID)
-        if ch:
-            content = (
-                '🪖 쟁탈원으로 승급하기 위해서는\n'
-                '🪖 운영진이 안내해준 승인인증 코드를 입력해주시기 바랍니다.'
-            )
-            pinned = await ch.pins()
-            if not any('쟁탈원으로 승급하기 위해서는' in (m.content or '') for m in pinned):
-                msg = await ch.send(content)
-                try:
-                    await msg.pin()
-                except Exception:
-                    pass
-
-    # 라디오 안내
-    if CHANNEL_RADIO_ID:
-        ch = guild.get_channel(CHANNEL_RADIO_ID)
-        if ch:
-            content = (
-                '📡✨ 라디오봇 접속 완료!\n'
-                '🎶 음성 채널에 들어간 후 아래 명령어 사용 가능\n\n'
-                '📻 /mbc표준fm : MBC 표준FM 재생\n'
-                '📻 /mbcfm4u : MBC FM4U 재생\n'
-                '📻 /sbs러브fm : SBS 러브FM 재생\n'
-                '📻 /sbs파워fm : SBS 파워FM 재생\n'
-                '📻 /cbs음악fm : CBS 음악FM 재생\n'
-                '🎧 /youtube_url : 유튜브 링크 재생\n'
-                '🎧 /youtube_검색 : 키워드 검색 재생\n'
-                '⛔ /정지 : 재생 중지 + 음성채널 퇴장\n\n'
-                '⭐ 명령어 실행 전 봇 아이콘 확인 후 사용'
-            )
-            pinned = await ch.pins()
-            if not any('📡✨ 라디오봇 접속 완료!' in (m.content or '') for m in pinned):
-                view = View(timeout=None)
-                view.add_item(Button(label='MBC 표준FM', custom_id='play_mbc'))
-                view.add_item(Button(label='MBC FM4U', custom_id='play_fm4u'))
-                view.add_item(Button(label='SBS 러브FM', custom_id='play_sbs_love'))
-                view.add_item(Button(label='SBS 파워FM', custom_id='play_sbs_power'))
-                view.add_item(Button(label='CBS 음악FM', custom_id='play_cbs'))
-                msg = await ch.send(content, view=view)
-                try:
-                    await msg.pin()
-                except Exception:
-                    pass
-
-# ────────────────────────────────
-# ✅ on_ready
-# ────────────────────────────────
-
-
-@bot.event
-async def on_ready():
-    print(f"✅ 로그인 완료: {bot.user} ({bot.user.id})")
-    try:
-        guild = discord.Object(id=GUILD_ID)
-        synced = await bot.tree.sync(guild=guild)
-        print(f"🌐 {len(synced)}개의 명령어가 {GUILD_ID} 서버에 동기화되었습니다.")
-        for cmd in synced:
-            print(f"  └ /{cmd.name} - {cmd.description}")
-    except Exception as e:
-        print(f"❌ 슬래시 명령어 동기화 실패: {e}")
-
-
-
-
-# ────────────────────────────────
-# ✅ 코드 입력 처리 (가입/승급)
-# ────────────────────────────────
-@bot.event
-async def on_message(message: discord.Message):
-    if message.author.bot:
-        return
-
-    if message.channel.id == CHANNEL_JOIN_ID:
-        if message.content.strip() == JOIN_CODE:
-            ok = await add_role_by_name(message.guild, message.author, JOIN_ROLE_NAME)
-            await message.channel.send('🎉정답입니다!! 클럽원 역할이 부여되었습니다!' if ok else '⚠️ 역할 부여 실패')
-        else:
-            await message.channel.send('❌ 정답이 아닙니다')
-        await asyncio.sleep(30)
-        await delete_non_pinned(message.channel)
-        return
-
-    if message.channel.id == CHANNEL_PROMOTE_ID:
-        if message.content.strip() == PROMOTE_CODE:
-            ok = await add_role_by_name(message.guild, message.author, PROMOTE_ROLE_NAME)
-            await message.channel.send('🎉정답입니다!! 쟁탈원 역할이 부여되었습니다!' if ok else '⚠️ 역할 부여 실패')
-        else:
-            await message.channel.send('❌ 정답이 아닙니다')
-        await asyncio.sleep(30)
-        await delete_non_pinned(message.channel)
-        return
-
-    await bot.process_commands(message)
-
-# ────────────────────────────────
-# ✅ 라디오 재생
-# ────────────────────────────────
 YTDLP_OPTS = {
-    'format': 'bestaudio/best',
-    'quiet': True,
-    'nocheckcertificate': True,
-    'skip_download': True,
+    "format": "bestaudio/best",
+    "quiet": True,
+    "nocheckcertificate": True,
+    "skip_download": True,
+    "cookiefile": COOKIES_FILE,  # 로그인 영상 지원
 }
+
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# ────────────────────────────────────────────────
+# 🎚 Player UI + 음성 재생 클래스
+# ────────────────────────────────────────────────
+class PlayerControllerView(View):
+    def __init__(self, player: "VoicePlayer"):
+        super().__init__(timeout=None)
+        self.player = player
+
+    @discord.ui.button(label="⏸ / ▶ 재생제어", style=ButtonStyle.primary)
+    async def pause_resume(self, interaction: discord.Interaction, button: Button):
+        if not self.player.vc:
+            await interaction.response.send_message("🎧 재생 중이 아닙니다.", ephemeral=True)
+            return
+        if self.player.vc.is_playing():
+            self.player.vc.pause()
+            await interaction.response.send_message("⏸ 일시정지되었습니다.", ephemeral=True)
+        elif self.player.vc.is_paused():
+            self.player.vc.resume()
+            await interaction.response.send_message("▶ 재개되었습니다.", ephemeral=True)
+        else:
+            await interaction.response.send_message("상태를 확인할 수 없습니다.", ephemeral=True)
+
+    @discord.ui.button(label="⏹ 정지", style=ButtonStyle.danger)
+    async def stop(self, interaction: discord.Interaction, button: Button):
+        await self.player.stop()
+        await interaction.response.send_message("⏹ 정지 완료", ephemeral=True)
+
 
 class VoicePlayer:
     def __init__(self):
         self.vc: discord.VoiceClient | None = None
-        self.current_msg: discord.Message | None = None
         self.source = None
+        self.current_title = None
+        self.current_msg = None
 
-    async def join_and_play(self, interaction: discord.Interaction, source_url: str, title: str = '라디오'):
+    async def join_and_play(self, interaction: discord.Interaction, source_url: str, title: str):
         if not interaction.user.voice or not interaction.user.voice.channel:
-            await interaction.response.send_message('먼저 음성 채널에 입장해 주세요.', ephemeral=True)
+            await interaction.response.send_message("먼저 음성채널에 들어가 주세요.", ephemeral=True)
             return
+
+        await interaction.response.defer()
         channel = interaction.user.voice.channel
+
+        # 연결
         try:
             if self.vc and self.vc.is_connected():
                 await self.vc.move_to(channel)
             else:
                 self.vc = await channel.connect()
         except Exception as e:
-            await interaction.response.send_message(f'음성채널 연결 실패: {e}', ephemeral=True)
+            await interaction.followup.send(f"음성채널 연결 실패: {e}")
             return
 
+        # 재생
         try:
-            ff_opts = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-            self.source = discord.FFmpegPCMAudio(source_url, before_options=ff_opts, options='-vn')
+            ff_opts = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
+            self.source = discord.FFmpegPCMAudio(source_url, before_options=ff_opts, options="-vn")
             self.vc.play(self.source)
+            self.current_title = title
         except Exception as e:
-            await interaction.response.send_message(f'재생 실패: {e}', ephemeral=True)
+            await interaction.followup.send(f"재생 실패: {e}")
             return
 
-        view = View(timeout=None)
-        view.add_item(Button(label='일시정지', custom_id='radio_pause'))
-        view.add_item(Button(label='정지', custom_id='radio_stop'))
-        content = f'▶️ 현재 재생중: {title}\n(하단 버튼으로 제어 가능)'
-        await interaction.response.send_message(content, view=view)
-        self.current_msg = await interaction.original_response()
+        # 제어 메시지
+        view = PlayerControllerView(self)
+        msg = await interaction.followup.send(f"▶️ **현재 재생중:** {title}", view=view)
+        self.current_msg = msg
 
     async def stop(self):
         if self.vc:
             try:
+                if self.vc.is_playing() or self.vc.is_paused():
+                    self.vc.stop()
                 await self.vc.disconnect()
             except Exception:
                 pass
             self.vc = None
-            self.source = None
-            if self.current_msg:
-                try:
-                    await self.current_msg.delete()
-                except Exception:
-                    pass
+        if self.current_msg:
+            try:
+                await self.current_msg.delete()
+            except Exception:
+                pass
+
 
 voice_player = VoicePlayer()
 
+# ────────────────────────────────────────────────
+# 📻 라디오 URL 목록
+# ────────────────────────────────────────────────
 RADIO_URLS = {
-    'mbc': 'https://minisw.imbc.com/dsfm/_definst_/sfm.stream/playlist.m3u8?_lsu_sa_=67A1D91483F53A74F44145103B61D041F5783835A00C326E3B7059a0768B39E69AaB435137E2F64A009534D1FAb4C16EABD96878E7BC0619921152E8E7EBFA931B98327E0489D778A4F3C574C9FEC7FB758F680E766F6EF2502994C223A3FD615A1C1E1FDE8F18BBC61C0DCA3ECFAD04',
-    'fm4u': 'https://minimw.imbc.com/dmfm/_definst_/mfm.stream/playlist.m3u8?_lsu_sa_=6A11AB1DB3A739D4DA4B55B13B712A47350D3C95500FB2123270F4a9D64E322699a9A3273D325249E0CC39E12FbCA1C7864BAF1C2B179F0ACD0C01522928E2C8F565B89E342A5EACC78FE208B80AE1FE6C864F4B28E1D0E70172AC45367E4814BF8F4A2D445F6B7ACED29B6CFEE6E70E',
-    'sbs_love': 'https://radiolive.sbs.co.kr/lovepc/lovefm.stream/playlist.m3u8?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NjIwMzcxNzMsInBhdGgiOiIvbG92ZWZtLnN0cmVhbSIsImR1cmF0aW9uIjotMSwidW5vIjoiYWIyMTlhZmMtMWIxNC00ODczLWI1MDktOTNmYjNjZTljYjgwIiwiaWF0IjoxNzYxOTkzOTczfQ.ebt9XpFVApTFX_T_fTCqNZvgv24XxwFlCso27Gm522I',
-    'sbs_power': 'https://radiolive.sbs.co.kr/powerpc/powerfm.stream/playlist.m3u8?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NjIwMzcxODUsInBhdGgiOiIvcG93ZXJmbS5zdHJlYW0iLCJkdXJhdGlvbiI6LTEsInVubyI6IjhlMDMwOWYzLTE0NmItNDg5MC05ZDRlLTU3YzU4NDJkZWQ4YyIsImlhdCI6MTc2MTk5Mzk4NX0.YhsR4d864lBc9DajabAbHHu4WewCBxpOgK_quJxcUIM',
-    'cbs': 'https://m-aac.cbs.co.kr/mweb_cbs939/_definst_/cbs939.stream/chunklist.m3u8',
+    "play_mbc": ("📻 MBC 표준FM", "http://smbc-mbc.akamaized.net/standardfm?_fw=1"),
+    "play_fm4u": ("🎶 MBC FM4U", "http://smbc-mbc.akamaized.net/fm4u?_fw=1"),
+    "play_sbs_love": ("💘 SBS 러브FM", "http://sbs-live-webcast.gscdn.com/lovefm/_definst_/lovefm.stream/playlist.m3u8"),
+    "play_sbs_power": ("⚡ SBS 파워FM", "http://sbs-live-webcast.gscdn.com/powerfm/_definst_/powerfm.stream/playlist.m3u8"),
+    "play_cbs": ("🎵 CBS 음악FM", "http://cbs-live.gscdn.com/cbs/_definst_/cbs.stream/playlist.m3u8"),
 }
 
-async def extract_audio_url(youtube_url: str):
-    loop = asyncio.get_event_loop()
-    def run():
-        with yt_dlp.YoutubeDL(YTDLP_OPTS) as ydl:
-            info = ydl.extract_info(youtube_url, download=False)
-            for f in info.get('formats', [info]):
-                if f.get('acodec') != 'none':
-                    return f.get('url')
-            return info.get('url')
-    return await loop.run_in_executor(None, run)
+# ────────────────────────────────────────────────
+# 🎛 버튼 뷰
+# ────────────────────────────────────────────────
+class NickButtonView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(Button(label="/NICK 실행", style=ButtonStyle.primary, custom_id="nick_exec"))
 
-# ────────────────────────────────
-# ✅ 슬래시 명령어 등록
-# ────────────────────────────────
-@bot.tree.command(name='mbc표준fm', description='MBC 표준FM 재생')
-async def cmd_mbc(interaction: discord.Interaction):
-    await voice_player.join_and_play(interaction, RADIO_URLS.get('mbc', ''), title='MBC 표준FM')
 
-@bot.tree.command(name='mbcfm4u', description='MBC FM4U 재생')
-async def cmd_fm4u(interaction: discord.Interaction):
-    await voice_player.join_and_play(interaction, RADIO_URLS.get('fm4u', ''), title='MBC FM4U')
+# ────────────────────────────────────────────────
+# 🔔 고정 안내 메시지 자동 보장
+# ────────────────────────────────────────────────
+async def ensure_welcome_messages(guild: discord.Guild):
+    async def pin_if_not_exists(channel, text, view=None):
+        try:
+            pinned = [m async for m in channel.pins()]
+            if not any(text.splitlines()[0] in (m.content or "") for m in pinned):
+                msg = await channel.send(text, view=view)
+                await msg.pin()
+        except Exception:
+            pass
 
-@bot.tree.command(name='sbs러브fm', description='SBS 러브FM 재생')
-async def cmd_sbs_love(interaction: discord.Interaction):
-    await voice_player.join_and_play(interaction, RADIO_URLS.get('sbs_love', ''), title='SBS 러브FM')
+    # 가입
+    if CHANNEL_JOIN_ID:
+        ch = guild.get_channel(CHANNEL_JOIN_ID)
+        if ch:
+            text = (
+                "🎊삐약 디스코드 서버에 오신 것을 환영합니다!\n"
+                "🎊✨운영진 또는 오픈톡 공지사항에 있는 디스코드 인증코드를 채팅으로 남겨주세요!\n"
+                "🪪 별명 변경은 아래 버튼을 눌러 /NICK 실행!"
+            )
+            await pin_if_not_exists(ch, text, NickButtonView())
 
-@bot.tree.command(name='sbs파워fm', description='SBS 파워FM 재생')
-async def cmd_sbs_power(interaction: discord.Interaction):
-    await voice_player.join_and_play(interaction, RADIO_URLS.get('sbs_power', ''), title='SBS 파워FM')
+    # 승급
+    if CHANNEL_PROMOTE_ID:
+        ch = guild.get_channel(CHANNEL_PROMOTE_ID)
+        if ch:
+            text = "🪖 쟁탈원 승급을 위해 승인 코드를 입력하세요."
+            await pin_if_not_exists(ch, text)
 
-@bot.tree.command(name='cbs음악fm', description='CBS 음악FM 재생')
-async def cmd_cbs(interaction: discord.Interaction):
-    await voice_player.join_and_play(interaction, RADIO_URLS.get('cbs', ''), title='CBS 음악FM')
+    # 라디오
+    if CHANNEL_RADIO_ID:
+        ch = guild.get_channel(CHANNEL_RADIO_ID)
+        if ch:
+            text = (
+                "📡✨ 라디오봇 접속 완료!\n"
+                "🎧 음성 채널 접속 후 아래 버튼으로 방송 선택!\n"
+                "또는 /youtube_url, /youtube_검색 명령어로 유튜브 재생 가능"
+            )
+            view = View(timeout=None)
+            for key, (label, _) in RADIO_URLS.items():
+                view.add_item(Button(label=label, custom_id=key))
+            await pin_if_not_exists(ch, text, view)
 
-@bot.tree.command(name='youtube_url', description='유튜브 URL 재생')
-@app_commands.describe(url='YouTube 영상 URL')
-async def cmd_youtube_url(interaction: discord.Interaction, url: str):
-    await interaction.response.defer()
-    audio_url = await extract_audio_url(url)
-    if not audio_url:
-        await interaction.followup.send('오디오 추출 실패')
-        return
-    await voice_player.join_and_play(interaction, audio_url, title='YouTube 재생')
 
-@bot.tree.command(name='youtube_검색', description='유튜브에서 키워드 검색 후 첫 결과 재생')
-@app_commands.describe(keyword='검색 키워드')
-async def cmd_youtube_search(interaction: discord.Interaction, keyword: str):
-    await interaction.response.defer()
-    query = f'ytsearch1:{keyword}'
-    audio_url = await extract_audio_url(query)
-    if not audio_url:
-        await interaction.followup.send('검색 실패')
-        return
-    await voice_player.join_and_play(interaction, audio_url, title=f'YouTube 검색: {keyword}')
+# ────────────────────────────────────────────────
+# ⚙️ 슬래시 명령어 등록
+# ────────────────────────────────────────────────
+@bot.event
+async def on_ready():
+    print(f"✅ 로그인 완료: {bot.user}")
+    guild = bot.get_guild(GUILD_ID)
 
-@bot.tree.command(name='정지', description='재생 중지 및 음성채널 퇴장')
-async def cmd_stop(interaction: discord.Interaction):
-    await voice_player.stop()
-    await interaction.response.send_message('⏹️ 재생을 중지하고 음성 채널에서 나갑니다.')
-    if interaction.channel and isinstance(interaction.channel, discord.TextChannel):
-        await delete_non_pinned(interaction.channel)
+    # 슬래시 명령어 동기화
+    try:
+        synced = await bot.tree.sync(guild=guild) if guild else await bot.tree.sync()
+        print(f"🌐 {len(synced)}개의 명령어 동기화 완료")
+        ch = bot.get_channel(CHANNEL_RADIO_ID) or bot.get_channel(CHANNEL_JOIN_ID)
+        if ch:
+            await ch.send(f"✅ **명령어 {len(synced)}개 동기화 완료!**")
+    except Exception as e:
+        print(f"❌ 동기화 실패: {e}")
 
-# ────────────────────────────────
-# ✅ 버튼 이벤트 처리
-# ────────────────────────────────
+    # 고정 메시지 보장
+    try:
+        if guild:
+            await ensure_welcome_messages(guild)
+    except Exception as e:
+        print(f"❌ 안내 메시지 생성 실패: {e}")
+
+
+# ────────────────────────────────────────────────
+# 📻 라디오 버튼 이벤트
+# ────────────────────────────────────────────────
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    cid = getattr(interaction, 'data', {}).get('custom_id') if getattr(interaction, 'data', None) else None
-    if not cid:
-        return
+    # 닉명 명령 실행 버튼
+    if interaction.type == discord.InteractionType.component:
+        cid = interaction.data.get("custom_id")
+        if cid == "nick_exec":
+            await interaction.response.send_message("/NICK 명령어를 실행하세요!", ephemeral=True)
+            return
+
+        # 라디오 버튼 처리
+        if cid in RADIO_URLS:
+            title, url = RADIO_URLS[cid]
+            await voice_player.join_and_play(interaction, url, title)
+            return
+
+    await bot.process_application_commands(interaction)
+
+
+# ────────────────────────────────────────────────
+# 🎧 유튜브 명령어
+# ────────────────────────────────────────────────
+@bot.tree.command(name="youtube_url", description="유튜브 URL 재생")
+async def youtube_url(interaction: discord.Interaction, url: str):
+    await interaction.response.defer()
     try:
-        if cid == 'play_mbc': return await cmd_mbc(interaction)
-        if cid == 'play_fm4u': return await cmd_fm4u(interaction)
-        if cid == 'play_sbs_love': return await cmd_sbs_love(interaction)
-        if cid == 'play_sbs_power': return await cmd_sbs_power(interaction)
-        if cid == 'play_cbs': return await cmd_cbs(interaction)
-        if cid == 'radio_pause':
-            if voice_player.vc and voice_player.vc.is_playing():
-                voice_player.vc.pause()
-                await interaction.response.send_message('⏸️ 일시정지되었습니다.', ephemeral=True)
-            elif voice_player.vc and voice_player.vc.is_paused():
-                voice_player.vc.resume()
-                await interaction.response.send_message('▶️ 재개되었습니다.', ephemeral=True)
-            else:
-                await interaction.response.send_message('재생중이 아닙니다.', ephemeral=True)
-            return
-        if cid == 'radio_stop':
-            await voice_player.stop()
-            await interaction.response.send_message('⏹️ 정지되었습니다.', ephemeral=True)
-            if interaction.channel and isinstance(interaction.channel, discord.TextChannel):
-                await delete_non_pinned(interaction.channel)
-            return
-        if cid == 'nick_btn':
-            modal = NickModal(interaction.user)
-            await interaction.response.send_modal(modal)
-            return
-    except Exception:
-        pass
+        with yt_dlp.YoutubeDL(YTDLP_OPTS) as ydl:
+            info = ydl.extract_info(url, download=False)
+            stream = info["url"]
+            title = info.get("title", "유튜브 오디오")
+        await voice_player.join_and_play(interaction, stream, f"🎵 {title}")
+    except Exception as e:
+        await interaction.followup.send(f"유튜브 재생 실패: {e}")
 
-# ────────────────────────────────
-# ✅ 실행
-# ────────────────────────────────
-if __name__ == '__main__':
-    if not TOKEN:
-        print('❌ DISCORD_TOKEN not set in .env')
-        raise SystemExit(1)
+
+@bot.tree.command(name="youtube_검색", description="유튜브 검색 후 첫 영상 재생")
+async def youtube_검색(interaction: discord.Interaction, 키워드: str):
+    await interaction.response.defer()
+    try:
+        query = f"ytsearch1:{키워드}"
+        with yt_dlp.YoutubeDL(YTDLP_OPTS) as ydl:
+            info = ydl.extract_info(query, download=False)["entries"][0]
+            stream = info["url"]
+            title = info["title"]
+        await voice_player.join_and_play(interaction, stream, f"🔍 {title}")
+    except Exception as e:
+        await interaction.followup.send(f"검색 실패: {e}")
+
+
+@bot.tree.command(name="정지", description="현재 재생 중지 및 음성 퇴장")
+async def stop(interaction: discord.Interaction):
+    await voice_player.stop()
+    await interaction.response.send_message("⛔ 정지 및 퇴장 완료", ephemeral=True)
+
+
+# ────────────────────────────────────────────────
+# ▶️ 실행
+# ────────────────────────────────────────────────
+if __name__ == "__main__":
     bot.run(TOKEN)
-
-
-
