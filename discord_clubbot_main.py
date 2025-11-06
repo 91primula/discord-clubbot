@@ -43,7 +43,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # 유틸 함수
 # ────────────────────────────────
 async def ensure_pinned_message(channel: discord.TextChannel, content: str, view: discord.ui.View):
-    pinned = [m async for m in channel.pins()]
+    pinned = await channel.pins()
     key = content.splitlines()[0]
     for m in pinned:
         if m.content.startswith(key):
@@ -54,7 +54,7 @@ async def ensure_pinned_message(channel: discord.TextChannel, content: str, view
 
 async def delete_non_pinned_messages_after(channel: discord.TextChannel, delay: int):
     await asyncio.sleep(delay)
-    pinned = [m async for m in channel.pins()]
+    pinned = await channel.pins()
     pinned_ids = {m.id for m in pinned}
     async for m in channel.history(limit=200):
         if m.id not in pinned_ids:
