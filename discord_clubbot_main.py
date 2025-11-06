@@ -203,7 +203,7 @@ for cmd_name in RADIOS.keys():
 # ───────────────────────────────
 # 🎧 YouTube 재생 / 검색
 # ───────────────────────────────
-@bot.tree.command(name='youtube_URL', description='YouTube 링크 재생')
+@bot.tree.command(name='youtube_url', description='YouTube 링크 재생')
 @app_commands.describe(url='재생할 유튜브 링크')
 async def youtube_url(interaction: discord.Interaction, url: str):
     await start_radio_playback(interaction, url)
