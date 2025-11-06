@@ -143,13 +143,17 @@ class ControlButtons(View):
 @bot.event
 async def on_ready():
     print(f"✅ 봇 로그인 완료: {bot.user}")
+    print(f"🔍 GUILD_ID = {GUILD_ID}")
+
     guild = bot.get_guild(int(GUILD_ID))
     if not guild:
-        print("⚠️ 서버를 찾을 수 없습니다.")
+        print("❌ [오류] GUILD_ID로 서버를 찾지 못했습니다. .env 설정 확인!")
         return
+    print(f"🏠 연결된 서버: {guild.name}")
 
     join_channel = discord.utils.get(guild.text_channels, name="가입인증")
     if join_channel:
+        print(f"📢 가입인증 채널 찾음: {join_channel.name}")
         pinned = await join_channel.pins()
         if not pinned:
             msg1 = await join_channel.send(
@@ -168,9 +172,14 @@ async def on_ready():
                 view=NicknameChangeView()
             )
             await msg2.pin()
+        else:
+            print("📌 기존 고정 메시지가 존재함.")
+    else:
+        print("⚠️ [주의] '가입인증' 채널을 찾을 수 없습니다. 이름 확인!")
 
     radio_channel = discord.utils.get(guild.text_channels, name="라디오")
     if radio_channel:
+        print(f"📡 라디오 채널 찾음: {radio_channel.name}")
         radio_msg = (
             "📡✨ 라디오봇 접속 완료!\n"
             "🎶 아래 버튼으로 라디오 또는 유튜브를 재생하세요.\n"
@@ -179,6 +188,8 @@ async def on_ready():
         )
         await radio_channel.send(radio_msg, view=RadioButtons())
         await radio_channel.send("🎛 재생 제어", view=ControlButtons())
+    else:
+        print("⚠️ [주의] '라디오' 채널을 찾을 수 없습니다. 이름 확인!")
 
     print("✅ 모든 시스템 준비 완료!")
 
