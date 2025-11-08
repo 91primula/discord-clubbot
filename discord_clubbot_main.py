@@ -1,5 +1,6 @@
 # ───────────────────────────────────────────────────────────
-# 🎛 Discord 통합 관리봇 (가입인증 + 승급인증 + 라디오/유튜브 + 재생리스트) 2025-11 완전판
+# 🎛 Discord 통합 관리봇
+# (가입인증 + 승급인증 + 라디오/유튜브, 큐/재생리스트 제거 버전)
 # ───────────────────────────────────────────────────────────
 # ⚙️ 필수 환경변수 (.env)
 # DISCORD_TOKEN=봇토큰
@@ -16,7 +17,7 @@
 
 import os
 import asyncio
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
@@ -72,7 +73,7 @@ def build_ytdlp_opts() -> dict:
     opts = {
         "format": "bestaudio/best",
         "quiet": True,
-        "noplaylist": True,
+        "noplaylist": True,          # ✅ 큐/플리 막기 위해 단일만
         "default_search": "ytsearch",
         "cachedir": False,
         "nocheckcertificate": True,
@@ -128,29 +129,6 @@ async def ytdlp_search_first(query: str) -> Optional[Dict[str, str]]:
             return None
 
     return await loop.run_in_executor(None, _search)
-
-# ────────────────────────────────
-# 🎧 길드 오디오/큐 상태
-# ────────────────────────────────
-
-class GuildAudioState:
-    def __init__(self):
-        self.queue: List[Dict[str, str]] = []   # {title, stream_url}
-        self.now: Optional[Dict[str, str]] = None
-
-    def clear_radio(self):
-        """라디오 재생 시 큐와 현재곡 정리용 (원하면 라디오는 별도 처리)."""
-        self.queue.clear()
-        self.now = None
-
-
-AUDIO: Dict[int, GuildAudioState] = {}
-
-
-def get_state(guild_id: int) -> GuildAudioState:
-    if guild_id not in AUDIO:
-        AUDIO[guild_id] = GuildAudioState()
-    return AUDIO[guild_id]
 
 # ────────────────────────────────
 # 🧩 공통 유틸
@@ -230,7 +208,7 @@ class YoutubeURLModal(Modal, title="YouTube URL 재생"):
     url = TextInput(label="URL 입력", placeholder="https://www.youtube.com/watch?v=...", required=True)
 
     async def on_submit(self, i: discord.Interaction):
-        await queue_youtube(i, self.url.value.strip())
+        await play_youtube(i, self.url.value.strip())
 
 
 class YoutubeSearchModal(Modal, title="YouTube 검색 재생"):
@@ -241,7 +219,27 @@ class YoutubeSearchModal(Modal, title="YouTube 검색 재생"):
         if not found:
             await i.response.send_message("🔎 검색 결과를 찾지 못했습니다.", ephemeral=True)
             return
-        await queue_youtube(i, found["webpage_url"], title=found.get("title"))
+        await play_youtube(i, found["webpage_url"], title=found.get("title"))
+
+
+class NicknameModal(Modal, title="서버 별명 변경"):
+    """별명 변경용 모달 (서버 닉네임 직접 변경)"""
+    new_nick = TextInput(
+        label="새 별명",
+        placeholder="서버에서 사용할 별명을 입력하세요",
+        required=True,
+        max_length=32,
+    )
+
+    async def on_submit(self, i: discord.Interaction):
+        nick = self.new_nick.value.strip()
+        try:
+            await i.user.edit(nick=nick)
+            await i.response.send_message(f"✅ 별명이 `{nick}`(으)로 변경되었습니다.", ephemeral=True)
+        except discord.Forbidden:
+            await i.response.send_message("❌ 봇에 닉네임 변경 권한이 없어요. 관리자에게 권한을 확인 요청해주세요.", ephemeral=True)
+        except Exception:
+            await i.response.send_message("⚠️ 별명 변경 중 오류가 발생했습니다.", ephemeral=True)
 
 # ────────────────────────────────
 # 🔘 View / 버튼 UI
@@ -251,7 +249,8 @@ class JoinView(View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(Button(label="가입인증", style=discord.ButtonStyle.primary, custom_id="join"))
-        self.add_item(Button(label="별명 변경 안내", style=discord.ButtonStyle.secondary, custom_id="nick_info"))
+        # ✅ 별명 변경 안내 → 실제 별명 변경 모달
+        self.add_item(Button(label="별명 변경", style=discord.ButtonStyle.secondary, custom_id="nick_change"))
 
 
 class PromoteView(View):
@@ -263,16 +262,14 @@ class PromoteView(View):
 class RadioView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        # 라디오
+        # 라디오 버튼만
         for r in ["mbc표준fm", "mbcfm4u", "sbs러브fm", "sbs파워fm", "cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
-        # 유튜브
+        # 유튜브: 단일 재생만 (큐 없음)
         self.add_item(Button(label="YouTube URL", style=discord.ButtonStyle.secondary, custom_id="yturl"))
         self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.secondary, custom_id="ytsearch"))
-        # 재생 컨트롤
-        self.add_item(Button(label="재생리스트", style=discord.ButtonStyle.secondary, custom_id="show_queue"))
-        self.add_item(Button(label="⏭ 다음", style=discord.ButtonStyle.secondary, custom_id="next_track"))
-        # 정지
+        # ✅ 재생리스트/다음 제거
+        # 정지 버튼만 유지
         self.add_item(Button(label="정지", style=discord.ButtonStyle.danger, custom_id="stop"))
 
 # ────────────────────────────────
@@ -295,8 +292,9 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(PromoteModal())
         return
 
-    if cid == "nick_info":
-        await i.response.send_message("🔤 디스코드 '서버 프로필 편집'에서 별명을 변경해주세요.", ephemeral=True)
+    # ✅ 별명 변경 모달 오픈
+    if cid == "nick_change":
+        await i.response.send_modal(NicknameModal())
         return
 
     # 유튜브
@@ -308,23 +306,11 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(YoutubeSearchModal())
         return
 
-    if cid == "show_queue":
-        await show_queue(i)
-        return
-
-    if cid == "next_track":
-        await skip_track(i)
-        return
-
     # 정지
     if cid == "stop":
         vc = i.guild.voice_client
-        state = get_state(i.guild.id)
-        state.queue.clear()
-        state.now = None
         if vc:
             await vc.disconnect(force=True)
-        await purge_non_pinned(i.channel)
         await i.response.send_message("⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
         return
 
@@ -334,43 +320,11 @@ async def on_inter(i: discord.Interaction):
         return
 
 # ────────────────────────────────
-# 🎵 재생 / 큐 로직
+# 🎵 재생 로직 (큐/재생리스트 제거 버전)
 # ────────────────────────────────
 
-async def start_next(guild: discord.Guild):
-    """큐에서 다음 곡 재생"""
-    state = get_state(guild.id)
-    if not state.queue:
-        state.now = None
-        return
-
-    item = state.queue.pop(0)
-    state.now = item
-
-    vc = guild.voice_client
-    if not vc:
-        state.now = None
-        return
-
-    src = discord.FFmpegPCMAudio(
-        item["stream_url"],
-        before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-        options="-vn",
-    )
-
-    def _after(error):
-        # 다음 곡 자동 재생
-        fut = asyncio.run_coroutine_threadsafe(start_next(guild), bot.loop)
-        try:
-            fut.result()
-        except Exception as e:
-            print("next track error:", e)
-
-    vc.play(src, after=_after)
-
-
-async def queue_youtube(i: discord.Interaction, url: str, title: Optional[str] = None):
-    """유튜브 곡을 큐에 추가하고, 재생 중이 아니면 바로 재생"""
+async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = None):
+    """유튜브 단일 재생 (큐 없이 현재 곡 교체)"""
     vc = await connect_to_user_channel(i)
     if not vc:
         return
@@ -383,48 +337,23 @@ async def queue_youtube(i: discord.Interaction, url: str, title: Optional[str] =
         await i.response.send_message("⚠️ 로그인(쿠키)이 필요한 영상입니다. cookies.txt 설정을 확인해주세요.", ephemeral=True)
         return
 
-    # 큐에 추가
-    state = get_state(i.guild.id)
     item_title = title or url
-    state.queue.append({"title": item_title, "stream_url": stream})
 
-    # 지금 아무것도 안 틀고 있으면 바로 재생
-    if not vc.is_playing():
-        await start_next(i.guild)
-        await i.response.send_message(f"🎵 재생 시작: {item_title}", ephemeral=False)
-    else:
-        await i.response.send_message(f"➕ 대기열에 추가됨: {item_title}", ephemeral=False)
+    # 기존 재생 중이면 정지 후 새 곡 재생
+    if vc.is_playing():
+        vc.stop()
 
-
-async def show_queue(i: discord.Interaction):
-    state = get_state(i.guild.id)
-    lines = []
-
-    if state.now:
-        lines.append(f"▶ 현재 재생: {state.now['title']}")
-
-    if state.queue:
-        for idx, item in enumerate(state.queue[:10], start=1):
-            lines.append(f"{idx}. {item['title']}")
-    else:
-        if not state.now:
-            lines.append("대기열이 비어 있습니다.")
-
-    await i.response.send_message("\n".join(lines), ephemeral=True)
-
-
-async def skip_track(i: discord.Interaction):
-    vc = i.guild.voice_client
-    if not vc or not vc.is_playing():
-        await i.response.send_message("⏹ 현재 재생 중인 곡이 없습니다.", ephemeral=True)
-        return
-
-    vc.stop()  # after 콜백에서 자동으로 다음곡 재생
-    await i.response.send_message("⏭ 다음 곡으로 이동합니다.", ephemeral=True)
+    src = discord.FFmpegPCMAudio(
+        stream,
+        before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+        options="-vn",
+    )
+    vc.play(src)
+    await i.response.send_message(f"🎵 재생 시작: {item_title}", ephemeral=False)
 
 
 async def radio_play(i: discord.Interaction, key: str):
-    """라디오 재생(큐 초기화 후 바로 재생)"""
+    """라디오 재생 (항상 현재 재생 교체, 큐 없음)"""
     url = RADIO_URLS.get(key)
     if not url:
         await i.response.send_message("📻 라디오 URL이 설정되지 않았습니다.", ephemeral=True)
@@ -434,16 +363,15 @@ async def radio_play(i: discord.Interaction, key: str):
     if not vc:
         return
 
-    # 라디오 틀 때는 큐 비우기
-    state = get_state(i.guild.id)
-    state.clear_radio()
+    # 현재 재생 중인 것 정지 후 라디오 재생
+    if vc.is_playing():
+        vc.stop()
 
     src = discord.FFmpegPCMAudio(
         url,
         before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
         options="-vn",
     )
-    vc.stop()
     vc.play(src)
     await i.response.send_message(f"📻 {key} 재생 시작!", ephemeral=False)
 
@@ -455,7 +383,7 @@ async def radio_play(i: discord.Interaction, key: str):
 async def on_ready():
     print(f"✅ 로그인됨: {bot.user} (id: {bot.user.id})")
 
-    # persistent view 등록 (재부팅 후에도 버튼 유지)
+    # persistent view 등록
     bot.add_view(JoinView())
     bot.add_view(PromoteView())
     bot.add_view(RadioView())
@@ -485,12 +413,11 @@ async def on_ready():
                 ch,
                 f"{PIN_TAG_RADIO}\n"
                 "📡 라디오/유튜브 봇 접속 완료!\n"
-                "원하는 버튼을 눌러 라디오를 재생하거나 유튜브 음악을 큐에 추가하세요.",
+                "버튼을 눌러 라디오를 재생하거나 유튜브 음악을 바로 재생하세요. (재생리스트 없음)",
                 PIN_TAG_RADIO,
                 RadioView(),
             )
 
-    # (슬래시 명령어를 별도로 추가할 경우를 대비한 sync — 현재는 버튼/모달만 사용)
     try:
         await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print("✅ 슬래시 명령어 동기화 완료 (현재 등록된 명령어 기준)")
