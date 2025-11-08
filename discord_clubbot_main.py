@@ -206,6 +206,17 @@ async def purge_non_pinned(channel: discord.TextChannel):
     pin_ids = {m.id for m in pins}
     await channel.purge(limit=200, check=lambda m: m.id not in pin_ids)
 
+async def delete_radio_messages_after_stop(msg: discord.Message, delay: int):
+    """라디오 채널에서 stop 누르면 3초 뒤, 핀 제외 전체 정리"""
+    await asyncio.sleep(delay)
+
+    ch = msg.channel
+    # 라디오 안내 채널에서만 동작하도록 제한
+    if isinstance(ch, discord.TextChannel) and ch.id == CHANNEL_RADIO_ID:
+        try:
+            await purge_non_pinned(ch)
+        except Exception:
+            pass
 
 async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discord.VoiceClient]:
     user = inter.user
@@ -408,10 +419,12 @@ async def on_inter(i: discord.Interaction):
         msg = await send_or_followup(i, "⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
         try:
             if isinstance(msg, discord.Message):
-                asyncio.create_task(delete_later_and_purge(msg, 5))
+                # 라디오 채널일 경우에만 3초 뒤 핀 제외 전체 삭제
+                asyncio.create_task(delete_radio_messages_after_stop(msg, 3))
         except Exception:
             pass
         return
+
 
     if cid in RADIO_URLS:
         await radio_play(i, cid)
