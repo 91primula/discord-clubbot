@@ -2,7 +2,7 @@
 # 🎛 Discord 통합 관리봇
 # (가입인증 + 승급인증 + 라디오/유튜브, 큐/재생리스트 제거 + yt_dlp 예외 처리)
 # ───────────────────────────────────────────────────────────
-# ⚙️ 필수 환경변수 (.env)
+# ⚙️ 필수 환경변수 (.env / Koyeb 환경 설정)
 # DISCORD_TOKEN=봇토큰
 # GUILD_ID=123456789012345678
 # CHANNEL_JOIN_ID=가입인증채널ID
@@ -12,7 +12,8 @@
 # PROMOTE_CODE=021142
 # JOIN_ROLE_NAME=클럽원
 # PROMOTE_ROLE_NAME=쟁탈원
-# YTDLP_COOKIES=cookies.txt   # (선택, 연령제한/로그인 필요영상용)
+# YTDLP_COOKIES=cookies.txt              # (선택) 직접 파일 경로 사용 시
+# YTDLP_COOKIES_CONTENT=쿠키내용전부     # (선택) Secret에 통으로 넣는 방식
 # ───────────────────────────────────────────────────────────
 
 import os
@@ -39,15 +40,15 @@ JOIN_CODE = os.getenv("JOIN_CODE", "241120")
 PROMOTE_CODE = os.getenv("PROMOTE_CODE", "021142")
 JOIN_ROLE_NAME = os.getenv("JOIN_ROLE_NAME", "클럽원")
 PROMOTE_ROLE_NAME = os.getenv("PROMOTE_ROLE_NAME", "쟁탈원")
+
 YTDLP_COOKIES = os.getenv("YTDLP_COOKIES")
 YTDLP_COOKIES_CONTENT = os.getenv("YTDLP_COOKIES_CONTENT")
 
-# YTDLP_COOKIES 경로가 없고, 내용 기반 Secret이 있다면 실행 시 cookies.txt 생성
+# YTDLP_COOKIES가 없고, 내용 기반 Secret이 있다면 실행 시 cookies.txt 생성
 if (not YTDLP_COOKIES) and YTDLP_COOKIES_CONTENT:
     with open("cookies.txt", "w", encoding="utf-8") as f:
         f.write(YTDLP_COOKIES_CONTENT)
     YTDLP_COOKIES = "cookies.txt"
-
 
 # ────────────────────────────────
 # 📻 라디오 URL
@@ -70,8 +71,9 @@ PIN_TAG_RADIO = "[RADIO_PIN]"
 # ────────────────────────────────
 intents = discord.Intents.default()
 intents.members = True
-intents.message_content = True
+intents.message_content = True  # 필요 시 포털에서 Message Content Intent 활성화
 bot = commands.Bot(command_prefix="!", intents=intents)
+
 
 # ────────────────────────────────
 # 🎵 yt-dlp Helper
@@ -81,7 +83,7 @@ def build_ytdlp_opts() -> dict:
     opts = {
         "format": "bestaudio/best",
         "quiet": True,
-        "noplaylist": True,          # 큐/플레이리스트 비활성화
+        "noplaylist": True,          # 재생리스트/큐 비활성화
         "default_search": "ytsearch",
         "cachedir": False,
         "nocheckcertificate": True,
@@ -104,11 +106,14 @@ async def ytdlp_extract_stream(url: str) -> Optional[str]:
                 info = ydl.extract_info(url, download=False)
                 if not info:
                     return None
+                # 재생목록이면 첫 번째만 사용
                 if "entries" in info:
                     info = info["entries"][0]
+                # 오디오 스트림 URL
                 return info.get("url")
         except yt_dlp.utils.DownloadError as e:
             msg = str(e)
+            # 로그인/연령제한 등
             if ("Sign in to confirm" in msg
                     or "Private video" in msg
                     or "age-restricted" in msg):
@@ -143,7 +148,6 @@ async def ytdlp_search_first(query: str) -> Optional[Dict[str, str]]:
                 }
         except yt_dlp.utils.DownloadError as e:
             msg = str(e)
-            # 로그인/쿠키 이슈는 호출자에게 따로 알리기
             if ("Sign in to confirm" in msg
                     or "Private video" in msg
                     or "age-restricted" in msg):
@@ -154,9 +158,26 @@ async def ytdlp_search_first(query: str) -> Optional[Dict[str, str]]:
 
     return await loop.run_in_executor(None, _search)
 
+
 # ────────────────────────────────
 # 🧩 공통 유틸
 # ────────────────────────────────
+
+async def send_or_followup(i: discord.Interaction, content: str, ephemeral: bool = False):
+    """
+    interaction이 아직 응답 전이면 response.send_message,
+    이미 defer/응답된 상태면 followup.send 사용.
+    Unknown interaction 오류 방지용.
+    """
+    try:
+        if i.response.is_done():
+            return await i.followup.send(content, ephemeral=ephemeral)
+        else:
+            return await i.response.send_message(content, ephemeral=ephemeral)
+    except discord.NotFound:
+        # 인터랙션 만료/삭제된 경우 조용히 무시
+        return
+
 
 async def ensure_pinned_message(channel: discord.TextChannel, content: str, tag: str, view: Optional[View] = None):
     pins = await channel.pins()
@@ -177,7 +198,7 @@ async def purge_non_pinned(channel: discord.TextChannel):
 async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discord.VoiceClient]:
     user = inter.user
     if not isinstance(user, discord.Member) or not user.voice:
-        await inter.response.send_message("🎧 먼저 음성 채널에 들어가주세요.", ephemeral=True)
+        await send_or_followup(inter, "🎧 먼저 음성 채널에 들어가주세요.", ephemeral=True)
         return None
 
     vc = inter.guild.voice_client
@@ -189,7 +210,7 @@ async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discor
 
 
 async def delete_later_and_purge(msg: discord.Message, delay: int):
-    """인증 안내 메시지 delay초 뒤 삭제 + 채널 정리"""
+    """인증/안내 메시지 delay초 뒤 삭제 + 채널 정리"""
     await asyncio.sleep(delay)
     try:
         await msg.delete()
@@ -202,6 +223,7 @@ async def delete_later_and_purge(msg: discord.Message, delay: int):
             await purge_non_pinned(ch)
         except Exception:
             pass
+
 
 # ────────────────────────────────
 # 🔘 모달
@@ -220,14 +242,14 @@ class JoinModal(Modal, title="가입 인증"):
             await i.response.send_message("🎉 정답입니다! 클럽원 역할이 부여되었습니다!", ephemeral=False)
             try:
                 msg = await i.original_response()
-                asyncio.create_task(delete_later_and_purge(msg, 5))  # ✅ 5초 후 삭제
+                asyncio.create_task(delete_later_and_purge(msg, 5))
             except Exception:
                 pass
         else:
             await i.response.send_message("❌ 정답이 아닙니다.", ephemeral=False)
             try:
                 msg = await i.original_response()
-                asyncio.create_task(delete_later_and_purge(msg, 10))  # ✅ 10초 후 삭제
+                asyncio.create_task(delete_later_and_purge(msg, 10))
             except Exception:
                 pass
 
@@ -245,14 +267,14 @@ class PromoteModal(Modal, title="승급 인증"):
             await i.response.send_message("🎉 정답입니다! 쟁탈원 역할이 부여되었습니다!", ephemeral=False)
             try:
                 msg = await i.original_response()
-                asyncio.create_task(delete_later_and_purge(msg, 5))  # ✅ 5초 후 삭제
+                asyncio.create_task(delete_later_and_purge(msg, 5))
             except Exception:
                 pass
         else:
             await i.response.send_message("❌ 정답이 아닙니다.", ephemeral=False)
             try:
                 msg = await i.original_response()
-                asyncio.create_task(delete_later_and_purge(msg, 10))  # ✅ 10초 후 삭제
+                asyncio.create_task(delete_later_and_purge(msg, 10))
             except Exception:
                 pass
 
@@ -261,6 +283,8 @@ class YoutubeURLModal(Modal, title="YouTube URL 재생"):
     url = TextInput(label="URL 입력", placeholder="https://www.youtube.com/watch?v=...", required=True)
 
     async def on_submit(self, i: discord.Interaction):
+        # 무거운 작업 전에 defer로 인터랙션 유지
+        await i.response.defer(thinking=True)
         await play_youtube(i, self.url.value.strip())
 
 
@@ -268,14 +292,16 @@ class YoutubeSearchModal(Modal, title="YouTube 검색 재생"):
     q = TextInput(label="검색어", placeholder="노래 제목 또는 키워드", required=True)
 
     async def on_submit(self, i: discord.Interaction):
-        found = await ytdlp_search_first(self.q.value.strip())
+        await i.response.defer(thinking=True)
 
+        found = await ytdlp_search_first(self.q.value.strip())
         if not found:
-            await i.response.send_message("🔎 검색 결과를 찾지 못했습니다.", ephemeral=True)
+            await send_or_followup(i, "🔎 검색 결과를 찾지 못했습니다.", ephemeral=True)
             return
 
         if isinstance(found, dict) and found.get("_login_required") == "1":
-            await i.response.send_message(
+            await send_or_followup(
+                i,
                 "⚠️ 로그인(쿠키)이 필요한 영상만 검색되었습니다.\n"
                 "cookies.txt를 설정하거나, 다른 검색어/영상으로 시도해주세요.",
                 ephemeral=True,
@@ -303,6 +329,7 @@ class NicknameModal(Modal, title="서버 별명 변경"):
         except Exception:
             await i.response.send_message("⚠️ 별명 변경 중 오류가 발생했습니다.", ephemeral=True)
 
+
 # ────────────────────────────────
 # 🔘 View / 버튼 UI
 # ────────────────────────────────
@@ -311,7 +338,6 @@ class JoinView(View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(Button(label="가입인증", style=discord.ButtonStyle.primary, custom_id="join"))
-        # 🔴 요청: 빨간색 danger 스타일
         self.add_item(Button(label="별명 변경", style=discord.ButtonStyle.danger, custom_id="nick_change"))
 
 
@@ -332,6 +358,7 @@ class RadioView(View):
         self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.secondary, custom_id="ytsearch"))
         # 정지
         self.add_item(Button(label="정지", style=discord.ButtonStyle.danger, custom_id="stop"))
+
 
 # ────────────────────────────────
 # 🧠 버튼 인터랙션 핸들러
@@ -369,21 +396,18 @@ async def on_inter(i: discord.Interaction):
         if vc:
             await vc.disconnect(force=True)
 
-        # 안내 메시지 보냄 (일반 메시지)
-        await i.response.send_message("⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
-
-        # 5초 후, 이 메시지 삭제 + 해당 채널에서 핀 제외 전체 정리
+        msg = await send_or_followup(i, "⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
         try:
-            msg = await i.original_response()
-            asyncio.create_task(delete_later_and_purge(msg, 5))
+            if isinstance(msg, discord.Message):
+                asyncio.create_task(delete_later_and_purge(msg, 5))
         except Exception:
             pass
-
         return
 
     if cid in RADIO_URLS:
         await radio_play(i, cid)
         return
+
 
 # ────────────────────────────────
 # 🎵 재생 로직
@@ -395,12 +419,20 @@ async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = 
         return
 
     stream = await ytdlp_extract_stream(url)
+
+    # 스트림을 가져오지 못한 경우 (이미지 전용/형식 미지원 등)
     if not stream:
-        await i.response.send_message("⚠️ 유튜브 정보를 불러오지 못했습니다.", ephemeral=True)
+        await send_or_followup(
+            i,
+            "⚠️ 유튜브 정보를 불러오지 못했습니다.\n"
+            "이미지만 있는 영상이거나, 지원되지 않는 형식일 수 있어요.",
+            ephemeral=True,
+        )
         return
 
     if stream == "LOGIN_REQUIRED":
-        await i.response.send_message(
+        await send_or_followup(
+            i,
             "⚠️ 로그인(쿠키)이 필요한 영상입니다. cookies.txt 설정을 확인해주세요.",
             ephemeral=True,
         )
@@ -417,13 +449,14 @@ async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = 
         options="-vn",
     )
     vc.play(src)
-    await i.response.send_message(f"🎵 재생 시작: {item_title}", ephemeral=False)
+
+    await send_or_followup(i, f"🎵 재생 시작: {item_title}", ephemeral=False)
 
 
 async def radio_play(i: discord.Interaction, key: str):
     url = RADIO_URLS.get(key)
     if not url:
-        await i.response.send_message("📻 라디오 URL이 설정되지 않았습니다.", ephemeral=True)
+        await send_or_followup(i, "📻 라디오 URL이 설정되지 않았습니다.", ephemeral=True)
         return
 
     vc = await connect_to_user_channel(i)
@@ -439,7 +472,9 @@ async def radio_play(i: discord.Interaction, key: str):
         options="-vn",
     )
     vc.play(src)
-    await i.response.send_message(f"📻 {key} 재생 시작!", ephemeral=False)
+
+    await send_or_followup(i, f"📻 {key} 재생 시작!", ephemeral=False)
+
 
 # ────────────────────────────────
 # ✨ on_ready
@@ -449,6 +484,7 @@ async def radio_play(i: discord.Interaction, key: str):
 async def on_ready():
     print(f"✅ 로그인됨: {bot.user} (id: {bot.user.id})")
 
+    # Persistent View 등록
     bot.add_view(JoinView())
     bot.add_view(PromoteView())
     bot.add_view(RadioView())
@@ -488,6 +524,7 @@ async def on_ready():
         print("✅ 슬래시 명령어 동기화 완료 (현재 등록된 명령어 기준)")
     except Exception as e:
         print("명령어 동기화 실패:", e)
+
 
 # ────────────────────────────────
 # 🚀 실행
