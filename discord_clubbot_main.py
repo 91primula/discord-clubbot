@@ -73,7 +73,7 @@ def build_ytdlp_opts() -> dict:
     opts = {
         "format": "bestaudio/best",
         "quiet": True,
-        "noplaylist": True,          # ✅ 큐/플리 막기 위해 단일만
+        "noplaylist": True,          # 큐/플레이리스트 비활성화
         "default_search": "ytsearch",
         "cachedir": False,
         "nocheckcertificate": True,
@@ -87,7 +87,6 @@ def build_ytdlp_opts() -> dict:
 
 
 async def ytdlp_extract_stream(url: str) -> Optional[str]:
-    """단일 영상/검색 결과에서 실제 오디오 스트림 URL 추출"""
     loop = asyncio.get_running_loop()
 
     def _extract() -> Optional[str]:
@@ -113,7 +112,6 @@ async def ytdlp_extract_stream(url: str) -> Optional[str]:
 
 
 async def ytdlp_search_first(query: str) -> Optional[Dict[str, str]]:
-    """검색어로 유튜브 1개 찾기 (title, webpage_url 반환)"""
     loop = asyncio.get_running_loop()
 
     def _search() -> Optional[Dict[str, str]]:
@@ -135,7 +133,6 @@ async def ytdlp_search_first(query: str) -> Optional[Dict[str, str]]:
 # ────────────────────────────────
 
 async def ensure_pinned_message(channel: discord.TextChannel, content: str, tag: str, view: Optional[View] = None):
-    """tag 포함된 기존 핀 찾고 갱신, 없으면 새로 보내고 고정"""
     pins = await channel.pins()
     for m in pins:
         if tag in m.content:
@@ -146,14 +143,12 @@ async def ensure_pinned_message(channel: discord.TextChannel, content: str, tag:
 
 
 async def purge_non_pinned(channel: discord.TextChannel):
-    """핀 된 메시지 빼고 최근 메시지 정리"""
     pins = await channel.pins()
     pin_ids = {m.id for m in pins}
     await channel.purge(limit=200, check=lambda m: m.id not in pin_ids)
 
 
 async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discord.VoiceClient]:
-    """유저가 들어간 음성채널에 봇 연결/이동"""
     user = inter.user
     if not isinstance(user, discord.Member) or not user.voice:
         await inter.response.send_message("🎧 먼저 음성 채널에 들어가주세요.", ephemeral=True)
@@ -166,6 +161,20 @@ async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discor
         vc = await user.voice.channel.connect()
     return vc
 
+# 👉 메시지 지연 삭제 + 채널 정리용 공통 함수 추가
+async def delete_later_and_purge(msg: discord.Message, delay: int):
+    await asyncio.sleep(delay)
+    try:
+        await msg.delete()
+    except Exception:
+        pass
+    ch = msg.channel
+    if isinstance(ch, discord.TextChannel):
+        try:
+            await purge_non_pinned(ch)
+        except Exception:
+            pass
+
 # ────────────────────────────────
 # 🔘 모달
 # ────────────────────────────────
@@ -174,34 +183,50 @@ class JoinModal(Modal, title="가입 인증"):
     code = TextInput(label="가입코드", placeholder="241120", required=True)
 
     async def on_submit(self, i: discord.Interaction):
-        ch = i.channel
-        if self.code.value.strip() == JOIN_CODE:
+        is_correct = (self.code.value.strip() == JOIN_CODE)
+
+        if is_correct:
             role = discord.utils.get(i.guild.roles, name=JOIN_ROLE_NAME)
             if role:
                 await i.user.add_roles(role)
             await i.response.send_message("🎉 정답입니다! 클럽원 역할이 부여되었습니다!", ephemeral=False)
+            try:
+                msg = await i.original_response()
+                asyncio.create_task(delete_later_and_purge(msg, 5))  # ✅ 5초 후 삭제
+            except Exception:
+                pass
         else:
             await i.response.send_message("❌ 정답이 아닙니다.", ephemeral=False)
-
-        if isinstance(ch, discord.TextChannel):
-            asyncio.create_task(purge_non_pinned(ch))
+            try:
+                msg = await i.original_response()
+                asyncio.create_task(delete_later_and_purge(msg, 10))  # ✅ 10초 후 삭제
+            except Exception:
+                pass
 
 
 class PromoteModal(Modal, title="승급 인증"):
     code = TextInput(label="승급코드", placeholder="021142", required=True)
 
     async def on_submit(self, i: discord.Interaction):
-        ch = i.channel
-        if self.code.value.strip() == PROMOTE_CODE:
+        is_correct = (self.code.value.strip() == PROMOTE_CODE)
+
+        if is_correct:
             role = discord.utils.get(i.guild.roles, name=PROMOTE_ROLE_NAME)
             if role:
                 await i.user.add_roles(role)
             await i.response.send_message("🎉 정답입니다! 쟁탈원 역할이 부여되었습니다!", ephemeral=False)
+            try:
+                msg = await i.original_response()
+                asyncio.create_task(delete_later_and_purge(msg, 5))  # ✅ 5초 후 삭제
+            except Exception:
+                pass
         else:
             await i.response.send_message("❌ 정답이 아닙니다.", ephemeral=False)
-
-        if isinstance(ch, discord.TextChannel):
-            asyncio.create_task(purge_non_pinned(ch))
+            try:
+                msg = await i.original_response()
+                asyncio.create_task(delete_later_and_purge(msg, 10))  # ✅ 10초 후 삭제
+            except Exception:
+                pass
 
 
 class YoutubeURLModal(Modal, title="YouTube URL 재생"):
@@ -223,7 +248,6 @@ class YoutubeSearchModal(Modal, title="YouTube 검색 재생"):
 
 
 class NicknameModal(Modal, title="서버 별명 변경"):
-    """별명 변경용 모달 (서버 닉네임 직접 변경)"""
     new_nick = TextInput(
         label="새 별명",
         placeholder="서버에서 사용할 별명을 입력하세요",
@@ -249,8 +273,8 @@ class JoinView(View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(Button(label="가입인증", style=discord.ButtonStyle.primary, custom_id="join"))
-        # ✅ 별명 변경 안내 → 실제 별명 변경 모달
-        self.add_item(Button(label="별명 변경", style=discord.ButtonStyle.secondary, custom_id="nick_change"))
+        # ✅ 요청: 빨간색(위험 스타일) 별명 변경 버튼
+        self.add_item(Button(label="별명 변경", style=discord.ButtonStyle.danger, custom_id="nick_change"))
 
 
 class PromoteView(View):
@@ -262,14 +286,13 @@ class PromoteView(View):
 class RadioView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        # 라디오 버튼만
+        # 라디오
         for r in ["mbc표준fm", "mbcfm4u", "sbs러브fm", "sbs파워fm", "cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
-        # 유튜브: 단일 재생만 (큐 없음)
+        # 유튜브 (단일 재생)
         self.add_item(Button(label="YouTube URL", style=discord.ButtonStyle.secondary, custom_id="yturl"))
         self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.secondary, custom_id="ytsearch"))
-        # ✅ 재생리스트/다음 제거
-        # 정지 버튼만 유지
+        # 정지
         self.add_item(Button(label="정지", style=discord.ButtonStyle.danger, custom_id="stop"))
 
 # ────────────────────────────────
@@ -292,7 +315,7 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(PromoteModal())
         return
 
-    # ✅ 별명 변경 모달 오픈
+    # 별명 변경 모달
     if cid == "nick_change":
         await i.response.send_modal(NicknameModal())
         return
@@ -320,11 +343,10 @@ async def on_inter(i: discord.Interaction):
         return
 
 # ────────────────────────────────
-# 🎵 재생 로직 (큐/재생리스트 제거 버전)
+# 🎵 재생 로직
 # ────────────────────────────────
 
 async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = None):
-    """유튜브 단일 재생 (큐 없이 현재 곡 교체)"""
     vc = await connect_to_user_channel(i)
     if not vc:
         return
@@ -339,7 +361,6 @@ async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = 
 
     item_title = title or url
 
-    # 기존 재생 중이면 정지 후 새 곡 재생
     if vc.is_playing():
         vc.stop()
 
@@ -353,7 +374,6 @@ async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = 
 
 
 async def radio_play(i: discord.Interaction, key: str):
-    """라디오 재생 (항상 현재 재생 교체, 큐 없음)"""
     url = RADIO_URLS.get(key)
     if not url:
         await i.response.send_message("📻 라디오 URL이 설정되지 않았습니다.", ephemeral=True)
@@ -363,7 +383,6 @@ async def radio_play(i: discord.Interaction, key: str):
     if not vc:
         return
 
-    # 현재 재생 중인 것 정지 후 라디오 재생
     if vc.is_playing():
         vc.stop()
 
@@ -383,7 +402,6 @@ async def radio_play(i: discord.Interaction, key: str):
 async def on_ready():
     print(f"✅ 로그인됨: {bot.user} (id: {bot.user.id})")
 
-    # persistent view 등록
     bot.add_view(JoinView())
     bot.add_view(PromoteView())
     bot.add_view(RadioView())
