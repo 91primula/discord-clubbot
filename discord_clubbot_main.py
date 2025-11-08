@@ -19,13 +19,12 @@ Discord ClubBot - 가입/승급/라디오 통합 봇
 
 import os
 import asyncio
-from typing import Optional, List
+from typing import Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-# yt_dlp는 라디오(YouTube) 스트리밍에 사용
 import yt_dlp
 
 # 환경변수 로드(원하면 dotenv 사용)
@@ -69,7 +68,6 @@ class CodeModal(discord.ui.Modal, title="인증 코드 입력"):
         # 정답 확인
         if self.kind == 'join':
             if entered == JOIN_CODE:
-                # 역할 부여
                 role = interaction.guild.get_role(ROLE_CLUB_ID)
                 if role:
                     try:
@@ -77,7 +75,6 @@ class CodeModal(discord.ui.Modal, title="인증 코드 입력"):
                     except Exception:
                         pass
                 await interaction.response.send_message('🎉정답입니다!! 클럽원 역할이 부여되었습니다!! 별명을 인게임 캐릭명으로 변경해주세요!', ephemeral=False)
-                # 5초 후 고정 메시지를 제외하고 삭제
                 await asyncio.sleep(5)
                 await purge_channel_except_fixed(channel)
             else:
@@ -123,7 +120,6 @@ class JoinView(discord.ui.View):
 
     @discord.ui.button(label="가입인증", style=discord.ButtonStyle.primary, custom_id="join_button")
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 모달 실행
         modal = CodeModal('join', interaction.user)
         await interaction.response.send_modal(modal)
 
@@ -150,13 +146,11 @@ class RadioControlView(discord.ui.View):
 
     @discord.ui.button(label="재생", style=discord.ButtonStyle.success, custom_id="radio_play")
     async def play(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 재생 로직: 사용자가 음성 채널에 있어야 함
         voice_state = interaction.user.voice
         if not voice_state or not voice_state.channel:
             await interaction.response.send_message('먼저 음성 채널에 들어가세요.', ephemeral=True)
             return
-        await interaction.response.send_message(▶️ 재생 명령을 받았습니다. (버튼)', ephemeral=True)
-        # 실제 재생은 명령어에서 처리
+        await interaction.response.send_message('▶️ 재생 명령을 받았습니다. (버튼)', ephemeral=True)
 
     @discord.ui.button(label="일시정지", style=discord.ButtonStyle.secondary, custom_id="radio_pause")
     async def pause(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -179,7 +173,6 @@ class RadioControlView(discord.ui.View):
             except Exception:
                 pass
             await interaction.response.send_message('⛔ 재생이 중지되고 음성 연결이 해제되었습니다.', ephemeral=True)
-            # 고정 메시지를 제외하고 삭제
             ch = bot.get_channel(self.ctx_channel_id)
             if ch:
                 await purge_channel_except_fixed(ch)
@@ -188,7 +181,6 @@ class RadioControlView(discord.ui.View):
 
 # ---------------------- Helper functions ----------------------
 async def ensure_fixed_messages():
-    """서버 시작 시 각 채널에 고정 안내 메시지를 남기고 ID 저장"""
     await bot.wait_until_ready()
     guild = bot.get_guild(GUILD_ID) if GUILD_ID else None
 
@@ -204,7 +196,6 @@ async def ensure_fixed_messages():
                 "아래 버튼을 눌러 가입 인증을 진행해주세요\n"
                 "(가입인증)\n"
             )
-            # 안내문 고정 메시지
             msg = None
             async for m in ch.history(limit=100):
                 if m.author == bot.user and '삐약 디스코드 서버에 오신 것을 환영합니다' in (m.content or ''):
@@ -218,7 +209,6 @@ async def ensure_fixed_messages():
                     pass
             fixed_messages['join'] = msg.id
 
-            # 두번째 고정 안내
             second_text = (
                 "🪪✨ 2️⃣별명 변경 진행(인겜 캐릭명으로 통일)\n"
                 "(별명변경)\n"
@@ -286,17 +276,14 @@ async def ensure_fixed_messages():
             fixed_messages['radio'] = msg.id
 
 async def purge_channel_except_fixed(channel: discord.TextChannel):
-    """고정 메시지(fixed_messages)에 해당하지 않는 최근 메시지를 삭제합니다."""
     keep_ids = {v for v in fixed_messages.values() if v}
 
     def _check(m: discord.Message):
         return m.id not in keep_ids and m.author != bot.user
 
     try:
-        # bulk purge (14일 이내 메시지만 삭제 가능)
         await channel.purge(limit=100, check=_check)
     except Exception:
-        # fallback: delete individually
         async for m in channel.history(limit=200):
             if _check(m):
                 try:
@@ -309,10 +296,8 @@ async def purge_channel_except_fixed(channel: discord.TextChannel):
 @bot.event
 async def on_ready():
     print(f"봇 준비 완료: {bot.user} (Guild: {GUILD_ID})")
-    # 고정 메시지 보장
     bot.loop.create_task(ensure_fixed_messages())
 
-# 직접 모달 실행 가능한 커맨드
 @bot.tree.command(name="가입인증", description="가입 인증 모달을 엽니다")
 async def 가입인증(interaction: discord.Interaction):
     modal = CodeModal('join', interaction.user)
@@ -333,13 +318,12 @@ async def nick(interaction: discord.Interaction, newnick: str):
         await interaction.response.send_message('권한이 없어 별명을 변경할 수 없습니다.', ephemeral=True)
 
 # ---------------------- 라디오: 음성 연결 및 재생 ----------------------
-# 정적 라디오 스트림 URL (예시: 실제 스트림 URL로 교체 필요)
 RADIO_STATIONS = {
     'mbc표준fm': 'https://example.com/mbc_standard_stream',
     'mbcfm4u': 'https://example.com/mbcfm4u_stream',
     'sbs러브fm': 'https://example.com/sbs_love_stream',
     'sbs파워fm': 'https://example.com/sbs_power_stream',
-    'cbs음악fm': 'https://m-aac.cbs.co.kr/mweb_cbs939/_definst_/cbs939.stream/chunklist.m3u8',
+    'cbs음악fm': 'https://example.com/cbs_music_stream',
 }
 
 YTDL_OPTS = {
@@ -377,13 +361,11 @@ async def connect_voice_and_play(interaction: discord.Interaction, source_url: s
         if not vc or not vc.is_connected():
             vc = await channel.connect()
     except Exception:
-        # 이미 연결되어있을 수 있음. 시도 계속
         vc = guild.voice_client
     if not vc:
         await interaction.response.send_message('음성 연결에 실패했습니다.', ephemeral=True)
         return
 
-    # 재생 준비
     try:
         source = await YTDLSource.from_url(source_url, loop=bot.loop, stream=True)
         vc.play(source)
@@ -392,7 +374,6 @@ async def connect_voice_and_play(interaction: discord.Interaction, source_url: s
     except Exception as e:
         await interaction.response.send_message(f'오류로 인해 재생할 수 없습니다: {e}', ephemeral=True)
 
-# 라디오 명령어들
 @bot.tree.command(name='mbc표준fm', description='MBC 표준FM 재생')
 async def mbc표준fm(interaction: discord.Interaction):
     url = RADIO_STATIONS.get('mbc표준fm')
@@ -426,7 +407,6 @@ async def youtube_url(interaction: discord.Interaction, url: str):
 @bot.tree.command(name='youtube_검색', description='유튜브에서 검색하여 첫번째 영상 재생')
 @app_commands.describe(query='검색어')
 async def youtube_검색(interaction: discord.Interaction, query: str):
-    # yt_dlp를 이용한 검색: youtube 검색 URL로 변환
     search_url = f"ytsearch1:{query}"
     await connect_voice_and_play(interaction, search_url, f'YouTube 검색: {query}')
 
@@ -447,27 +427,19 @@ async def 정지(interaction: discord.Interaction):
     else:
         await interaction.response.send_message('재생 중인 음성이 없습니다.', ephemeral=True)
 
-# ---------------------- 버튼으로도 라디오 실행 (채널 고정 메시지에 표시되는 뷰에서 작동)
-# 라디오 채널 내 버튼으로 특정 방송을 재생시키려면 커스텀 ID를 보고 처리할 수 있습니다.
-
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    # interaction.type 기본은 application_command 또는 component
     if interaction.type != discord.InteractionType.component:
         return
     custom_id = interaction.data.get('custom_id')
     if not custom_id:
         return
-    # 가입/승급/닉 버튼은 View에서 이미 처리되므로 라디오 전용 커스텀만 처리
     if custom_id.startswith('radio_station_'):
         station_key = custom_id.replace('radio_station_', '')
         url = RADIO_STATIONS.get(station_key)
         if url:
             await connect_voice_and_play(interaction, url, station_key)
 
-# ---------------------- 봇 실행 처리 ----------------------
-
-# 앱 명령어 동기화 유틸리티
 async def sync_commands():
     await bot.wait_until_ready()
     try:
