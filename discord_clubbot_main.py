@@ -375,8 +375,8 @@ class RadioView(View):
         for r in ["mbc표준fm", "mbcfm4u", "sbs러브fm", "sbs파워fm", "cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
         # 유튜브 (단일 재생)
-        self.add_item(Button(label="YouTube URL", style=discord.ButtonStyle.secondary, custom_id="yturl"))
-        self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.secondary, custom_id="ytsearch"))
+        self.add_item(Button(label="YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
+        self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.success, custom_id="ytsearch"))
         # 정지
         self.add_item(Button(label="정지", style=discord.ButtonStyle.danger, custom_id="stop"))
 
