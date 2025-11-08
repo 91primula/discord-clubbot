@@ -359,14 +359,14 @@ class NicknameModal(Modal, title="서버 별명 변경"):
 class JoinView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(Button(label="가입인증", style=discord.ButtonStyle.primary, custom_id="join"))
-        self.add_item(Button(label="별명 변경", style=discord.ButtonStyle.danger, custom_id="nick_change"))
+        self.add_item(Button(label="🪪가입인증", style=discord.ButtonStyle.primary, custom_id="join"))
+        self.add_item(Button(label="🆕별명 변경", style=discord.ButtonStyle.danger, custom_id="nick_change"))
 
 
 class PromoteView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(Button(label="승급인증", style=discord.ButtonStyle.primary, custom_id="promote"))
+        self.add_item(Button(label="🪪승급인증", style=discord.ButtonStyle.primary, custom_id="promote"))
 
 
 class RadioView(View):
@@ -536,7 +536,9 @@ async def on_ready():
                 ch,
                 f"{PIN_TAG_JOIN}\n"
                 "🎊 삐약 디스코드 서버에 오신 것을 환영합니다!\n"
-                "✨ 운영진 또는 공지에서 인증코드를 확인한 뒤 아래 버튼으로 가입 인증을 진행해주세요!",
+                "✨ 🪪 운영진 또는 공지에서 인증코드를 확인한 뒤 아래 버튼으로 가입 인증을 진행해주세요!\n"
+                "✨\n"
+                "✨ 🆕 가입 인증 후에는 아래 버튼으로 별명 변경을 진행해주세요!",
                 PIN_TAG_JOIN,
                 JoinView(),
             )
@@ -545,7 +547,7 @@ async def on_ready():
                 ch,
                 f"{PIN_TAG_PROMOTE}\n"
                 "🪖 쟁탈원 승급 인증을 진행해주세요!\n"
-                "✨ 아래 버튼을 눌러 승급코드를 입력하면 자동으로 역할이 부여됩니다.",
+                "✨ 아래 버튼을 눌러 승급코드를 입력하면 자동으로 역할 부여됩니다.",
                 PIN_TAG_PROMOTE,
                 PromoteView(),
             )
@@ -554,7 +556,8 @@ async def on_ready():
                 ch,
                 f"{PIN_TAG_RADIO}\n"
                 "📡 라디오/유튜브 봇 접속 완료!\n"
-                "버튼을 눌러 라디오를 재생하거나 유튜브 음악을 바로 재생하세요.",
+                "📡📻 라디오 채널별 버튼을 눌러 라디오를 듣거나\n"
+                "📡🎧 유튜브 URL 기반 재생 or 검색(키워드) 기반으로 유튜브 음악을 바로 재생하세요.",
                 PIN_TAG_RADIO,
                 RadioView(),
             )
