@@ -1,6 +1,6 @@
 # ───────────────────────────────────────────────────────────
 # 🎛 Discord 통합 관리봇
-# (가입인증 + 승급인증 + 라디오/유튜브, 큐/재생리스트 제거 버전)
+# (가입인증 + 승급인증 + 라디오/유튜브, 큐/재생리스트 제거 + yt_dlp 예외 처리)
 # ───────────────────────────────────────────────────────────
 # ⚙️ 필수 환경변수 (.env)
 # DISCORD_TOKEN=봇토큰
@@ -87,6 +87,7 @@ def build_ytdlp_opts() -> dict:
 
 
 async def ytdlp_extract_stream(url: str) -> Optional[str]:
+    """단일 영상/검색 결과에서 실제 오디오 스트림 URL 추출"""
     loop = asyncio.get_running_loop()
 
     def _extract() -> Optional[str]:
@@ -112,18 +113,35 @@ async def ytdlp_extract_stream(url: str) -> Optional[str]:
 
 
 async def ytdlp_search_first(query: str) -> Optional[Dict[str, str]]:
+    """
+    검색어로 유튜브 1개 찾기.
+    - 정상: {title, webpage_url}
+    - 로그인 필요: {"_login_required": "1"}
+    - 실패: None
+    """
     loop = asyncio.get_running_loop()
 
     def _search() -> Optional[Dict[str, str]]:
-        q = f"ytsearch1:{query}"
-        with yt_dlp.YoutubeDL(build_ytdlp_opts()) as ydl:
-            info = ydl.extract_info(q, download=False)
-            if info and info.get("entries"):
+        try:
+            q = f"ytsearch1:{query}"
+            with yt_dlp.YoutubeDL(build_ytdlp_opts()) as ydl:
+                info = ydl.extract_info(q, download=False)
+                if not info or not info.get("entries"):
+                    return None
                 e = info["entries"][0]
                 return {
                     "title": e.get("title", "unknown"),
                     "webpage_url": e.get("webpage_url"),
                 }
+        except yt_dlp.utils.DownloadError as e:
+            msg = str(e)
+            # 로그인/쿠키 이슈는 호출자에게 따로 알리기
+            if ("Sign in to confirm" in msg
+                    or "Private video" in msg
+                    or "age-restricted" in msg):
+                return {"_login_required": "1"}
+            return None
+        except Exception:
             return None
 
     return await loop.run_in_executor(None, _search)
@@ -161,13 +179,15 @@ async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discor
         vc = await user.voice.channel.connect()
     return vc
 
-# 👉 메시지 지연 삭제 + 채널 정리용 공통 함수 추가
+
 async def delete_later_and_purge(msg: discord.Message, delay: int):
+    """인증 안내 메시지 delay초 뒤 삭제 + 채널 정리"""
     await asyncio.sleep(delay)
     try:
         await msg.delete()
     except Exception:
         pass
+
     ch = msg.channel
     if isinstance(ch, discord.TextChannel):
         try:
@@ -241,9 +261,19 @@ class YoutubeSearchModal(Modal, title="YouTube 검색 재생"):
 
     async def on_submit(self, i: discord.Interaction):
         found = await ytdlp_search_first(self.q.value.strip())
+
         if not found:
             await i.response.send_message("🔎 검색 결과를 찾지 못했습니다.", ephemeral=True)
             return
+
+        if isinstance(found, dict) and found.get("_login_required") == "1":
+            await i.response.send_message(
+                "⚠️ 로그인(쿠키)이 필요한 영상만 검색되었습니다.\n"
+                "cookies.txt를 설정하거나, 다른 검색어/영상으로 시도해주세요.",
+                ephemeral=True,
+            )
+            return
+
         await play_youtube(i, found["webpage_url"], title=found.get("title"))
 
 
@@ -273,7 +303,7 @@ class JoinView(View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(Button(label="가입인증", style=discord.ButtonStyle.primary, custom_id="join"))
-        # ✅ 요청: 빨간색(위험 스타일) 별명 변경 버튼
+        # 🔴 요청: 빨간색 danger 스타일
         self.add_item(Button(label="별명 변경", style=discord.ButtonStyle.danger, custom_id="nick_change"))
 
 
@@ -306,7 +336,6 @@ async def on_inter(i: discord.Interaction):
 
     cid = i.data.get("custom_id")
 
-    # 가입 / 승급
     if cid == "join":
         await i.response.send_modal(JoinModal())
         return
@@ -315,12 +344,10 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(PromoteModal())
         return
 
-    # 별명 변경 모달
     if cid == "nick_change":
         await i.response.send_modal(NicknameModal())
         return
 
-    # 유튜브
     if cid == "yturl":
         await i.response.send_modal(YoutubeURLModal())
         return
@@ -329,7 +356,6 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(YoutubeSearchModal())
         return
 
-    # 정지
     if cid == "stop":
         vc = i.guild.voice_client
         if vc:
@@ -337,7 +363,6 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_message("⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
         return
 
-    # 라디오
     if cid in RADIO_URLS:
         await radio_play(i, cid)
         return
@@ -355,8 +380,12 @@ async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = 
     if not stream:
         await i.response.send_message("⚠️ 유튜브 정보를 불러오지 못했습니다.", ephemeral=True)
         return
+
     if stream == "LOGIN_REQUIRED":
-        await i.response.send_message("⚠️ 로그인(쿠키)이 필요한 영상입니다. cookies.txt 설정을 확인해주세요.", ephemeral=True)
+        await i.response.send_message(
+            "⚠️ 로그인(쿠키)이 필요한 영상입니다. cookies.txt 설정을 확인해주세요.",
+            ephemeral=True,
+        )
         return
 
     item_title = title or url
