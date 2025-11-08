@@ -253,7 +253,7 @@ async def delete_radio_messages_after_stop(channel: discord.TextChannel, delay: 
 # ────────────────────────────────
 
 class JoinModal(Modal, title="가입 인증"):
-    code = TextInput(label="가입코드", placeholder="241120", required=True)
+    code = TextInput(label="가입코드", placeholder="운영진 또는 오픈톡방의 디스코드 인증코드를 입력하시오", required=True)
 
     async def on_submit(self, i: discord.Interaction):
         is_correct = (self.code.value.strip() == JOIN_CODE)
@@ -278,7 +278,7 @@ class JoinModal(Modal, title="가입 인증"):
 
 
 class PromoteModal(Modal, title="승급 인증"):
-    code = TextInput(label="승급코드", placeholder="021142", required=True)
+    code = TextInput(label="승급코드", placeholder="운영진에게 승급 인증코드를 물어보고 입력하시오오", required=True)
 
     async def on_submit(self, i: discord.Interaction):
         is_correct = (self.code.value.strip() == PROMOTE_CODE)
