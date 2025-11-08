@@ -68,13 +68,14 @@ else:
 # ────────────────────────────────
 # 📻 라디오 URL
 # ────────────────────────────────
-RADIO_URLS: Dict[str, str] = {
-    "mbc표준fm": "https://minisw.imbc.com/dsfm/_definst_/sfm.stream/playlist.m3u8?_lsu_sa_=61112E1583FB3CA4544AE5C23A41D044E56B3CD5F00CA2033A702FaE565334E6AEaF43243CD2C640E02E35215DbE316333E2409974760494C4BDEA30DF43A460D6494D94E16DB4B554063EF2C9715A26E8F8132F2E7C60C702A088D0C707B68A15BAFD759969CE735CA3E0560987064A",
-    "mbcfm4u": "https://minimw.imbc.com/dmfm/_definst_/mfm.stream/playlist.m3u8?_lsu_sa_=6971C51D139B39945940F5663041064025503355BF0EA23B38504AaD86BC3F9668aDD36230C2CB4100463A6175bC8171C5785076FC120267056BAFD2FB8CCC4952C3AAD8A1247657240B99AE1804334CA2004DC670EC73ABAF885C491F357916C857E0EE9A1BF42399D328100E2EA27F",
-    "sbs러브fm": "https://radiolive.sbs.co.kr/lovepc/lovefm.stream/playlist.m3u8?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NjI2MjI2NjMsInBhdGgiOiIvbG92ZWZtLnN0cmVhbSIsImR1cmF0aW9uIjotMSwidW5vIjoiMjEzYjM4MGYtNTgzYS00NmYyLWJmM2QtN2M4OWZjMWIxYjA1IiwiaWF0IjoxNzYyNTc5NDYzfQ.8W4kaPVi4DlG0hOF9VhZaqx_LhF9BdXIM_hqtBV98GU",
-    "sbs파워fm": "https://radiolive.sbs.co.kr/powerpc/powerfm.stream/playlist.m3u8?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NjI2MjI2NzIsInBhdGgiOiIvcG93ZXJmbS5zdHJlYW0iLCJkdXJhdGlvbiI6LTEsInVubyI6Ijg2YzRiNmY0LWNlMWEtNDI0Ni04YTY4LTI4OTYwZmY1MTYxYyIsImlhdCI6MTc2MjU3OTQ3Mn0.bzsqw24uEDU61sQ1slyUyLGvZusH3VrD7MWWD7pB-Ww",
-    "cbs음악fm": "https://m-aac.cbs.co.kr/mweb_cbs939/_definst_/cbs939.stream/chunklist.m3u8",
+RADIO_URLS = {
+    "mbc표준fm": os.getenv("RADIO_MBC_STD_URL"),
+    "mbcfm4u": os.getenv("RADIO_MBC_FM4U_URL"),
+    "sbs러브fm": os.getenv("RADIO_SBS_LOVE_URL"),
+    "sbs파워fm": os.getenv("RADIO_SBS_POWER_URL"),
+    "cbs음악fm": os.getenv("RADIO_CBS_MUSIC_URL"),
 }
+# RADIO_URLS: Dict[str, str]
 
 # 핀 고정 태그
 PIN_TAG_JOIN = "[JOIN_PIN]"
