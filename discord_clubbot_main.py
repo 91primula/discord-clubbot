@@ -204,32 +204,11 @@ async def ensure_pinned_message(channel: discord.TextChannel, content: str, tag:
 async def purge_non_pinned(channel: discord.TextChannel):
     pins = await channel.pins()
     pin_ids = {m.id for m in pins}
-    await channel.purge(limit=200, check=lambda m: m.id not in pin_ids)
-
-async def delete_radio_messages_after_stop(msg: discord.Message, delay: int):
-    """라디오 채널에서 stop 누르면 3초 뒤, 핀 제외 전체 정리"""
-    await asyncio.sleep(delay)
-
-    ch = msg.channel
-    # 라디오 안내 채널에서만 동작하도록 제한
-    if isinstance(ch, discord.TextChannel) and ch.id == CHANNEL_RADIO_ID:
-        try:
-            await purge_non_pinned(ch)
-        except Exception:
-            pass
-
-async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discord.VoiceClient]:
-    user = inter.user
-    if not isinstance(user, discord.Member) or not user.voice:
-        await send_or_followup(inter, "🎧 먼저 음성 채널에 들어가주세요.", ephemeral=True)
-        return None
-
-    vc = inter.guild.voice_client
-    if vc and vc.channel != user.voice.channel:
-        await vc.move_to(user.voice.channel)
-    if not vc:
-        vc = await user.voice.channel.connect()
-    return vc
+    deleted = await channel.purge(
+        limit=200,
+        check=lambda m: m.id not in pin_ids
+    )
+    print(f"[PURGE] {channel.name}: deleted {len(deleted)} messages (non-pinned)")
 
 
 async def delete_later_and_purge(msg: discord.Message, delay: int):
@@ -246,6 +225,28 @@ async def delete_later_and_purge(msg: discord.Message, delay: int):
             await purge_non_pinned(ch)
         except Exception:
             pass
+
+
+async def delete_radio_messages_after_stop(channel: discord.TextChannel, delay: int = 3):
+    """
+    stop 버튼 사용 시 라디오 채널에서만
+    delay초 뒤, 핀 고정 메시지 제외 전체 삭제
+    """
+    await asyncio.sleep(delay)
+
+    if not isinstance(channel, discord.TextChannel):
+        return
+
+    # 라디오 전용 채널에서만 작동
+    if channel.id != CHANNEL_RADIO_ID:
+        return
+
+    try:
+        await purge_non_pinned(channel)
+    except discord.Forbidden:
+        print("[RADIO_CLEANUP] ❌ 메시지 삭제 권한이 없습니다. (MANAGE_MESSAGES 확인)")
+    except Exception as e:
+        print("[RADIO_CLEANUP] 오류:", e)
 
 # ────────────────────────────────
 # 🔘 모달
@@ -305,7 +306,6 @@ class YoutubeURLModal(Modal, title="YouTube URL 재생"):
     url = TextInput(label="URL 입력", placeholder="https://www.youtube.com/watch?v=...", required=True)
 
     async def on_submit(self, i: discord.Interaction):
-        # 무거운 yt-dlp 작업 전에 defer
         await i.response.defer(thinking=True)
         await play_youtube(i, self.url.value.strip())
 
@@ -416,15 +416,18 @@ async def on_inter(i: discord.Interaction):
         if vc:
             await vc.disconnect(force=True)
 
-        msg = await send_or_followup(i, "⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
+        # 안내 메시지 (성공/실패와 무관하게 정리 로직은 채널 기준으로 동작)
         try:
-            if isinstance(msg, discord.Message):
-                # 라디오 채널일 경우에만 3초 뒤 핀 제외 전체 삭제
-                asyncio.create_task(delete_radio_messages_after_stop(msg, 3))
+            await send_or_followup(i, "⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
         except Exception:
             pass
-        return
 
+        # 라디오 채널이라면 3초 뒤 핀 제외 전체 삭제
+        channel = i.channel
+        if isinstance(channel, discord.TextChannel):
+            asyncio.create_task(delete_radio_messages_after_stop(channel, 3))
+
+        return
 
     if cid in RADIO_URLS:
         await radio_play(i, cid)
@@ -496,6 +499,23 @@ async def radio_play(i: discord.Interaction, key: str):
     await send_or_followup(i, f"📻 {key} 재생 시작!", ephemeral=False)
 
 # ────────────────────────────────
+# 🔊 음성 채널 연결 유틸
+# ────────────────────────────────
+
+async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discord.VoiceClient]:
+    user = inter.user
+    if not isinstance(user, discord.Member) or not user.voice:
+        await send_or_followup(inter, "🎧 먼저 음성 채널에 들어가주세요.", ephemeral=True)
+        return None
+
+    vc = inter.guild.voice_client
+    if vc and vc.channel != user.voice.channel:
+        await vc.move_to(user.voice.channel)
+    if not vc:
+        vc = await user.voice.channel.connect()
+    return vc
+
+# ────────────────────────────────
 # ✨ on_ready
 # ────────────────────────────────
 
@@ -503,7 +523,7 @@ async def radio_play(i: discord.Interaction, key: str):
 async def on_ready():
     print(f"✅ 로그인됨: {bot.user} (id: {bot.user.id})")
 
-    # Persistent View
+    # Persistent View 등록
     bot.add_view(JoinView())
     bot.add_view(PromoteView())
     bot.add_view(RadioView())
