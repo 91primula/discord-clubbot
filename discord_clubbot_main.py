@@ -465,8 +465,8 @@ async def on_ready():
         if (ch := guild.get_channel(CHANNEL_JOIN_ID)):
             await ensure_pinned_message(
                 ch,
-                f"{PIN_TAG_JOIN}"\n
-                "🎊 삐약 디스코드 서버에 오신 것을 환영합니다!"\n
+                f"{PIN_TAG_JOIN}\n"
+                "🎊 삐약 디스코드 서버에 오신 것을 환영합니다!\n"
                 "✨ 운영진 또는 공지에서 인증코드를 확인한 뒤 아래 버튼으로 가입 인증을 진행해주세요!",
                 PIN_TAG_JOIN,
                 JoinView(),
@@ -474,8 +474,8 @@ async def on_ready():
         if (ch := guild.get_channel(CHANNEL_PROMOTE_ID)):
             await ensure_pinned_message(
                 ch,
-                f"{PIN_TAG_PROMOTE}"\n
-                "🪖 쟁탈원 승급 인증을 진행해주세요!"\n
+                f"{PIN_TAG_PROMOTE}\n"
+                "🪖 쟁탈원 승급 인증을 진행해주세요!\n"
                 "✨ 아래 버튼을 눌러 승급코드를 입력하면 자동으로 역할이 부여됩니다.",
                 PIN_TAG_PROMOTE,
                 PromoteView(),
@@ -483,8 +483,8 @@ async def on_ready():
         if (ch := guild.get_channel(CHANNEL_RADIO_ID)):
             await ensure_pinned_message(
                 ch,
-                f"{PIN_TAG_RADIO}"\n
-                "📡 라디오/유튜브 봇 접속 완료!"\n
+                f"{PIN_TAG_RADIO}\n"
+                "📡 라디오/유튜브 봇 접속 완료!\n"
                 "원하는 버튼을 눌러 라디오를 재생하거나 유튜브 음악을 큐에 추가하세요.",
                 PIN_TAG_RADIO,
                 RadioView(),
