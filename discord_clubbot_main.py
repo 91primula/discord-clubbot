@@ -278,7 +278,7 @@ class JoinModal(Modal, title="가입 인증"):
 
 
 class PromoteModal(Modal, title="승급 인증"):
-    code = TextInput(label="승급코드", placeholder="운영진에게 승급 인증코드를 물어보고 입력하시오오", required=True)
+    code = TextInput(label="승급코드", placeholder="운영진에게 승급 인증코드를 물어보고 입력하시오", required=True)
 
     async def on_submit(self, i: discord.Interaction):
         is_correct = (self.code.value.strip() == PROMOTE_CODE)
@@ -553,7 +553,7 @@ async def on_ready():
                 ch,
                 f"{PIN_TAG_RADIO}\n"
                 "📡 라디오/유튜브 봇 접속 완료!\n"
-                "버튼을 눌러 라디오를 재생하거나 유튜브 음악을 바로 재생하세요. (재생리스트 없음)",
+                "버튼을 눌러 라디오를 재생하거나 유튜브 음악을 바로 재생하세요.",
                 PIN_TAG_RADIO,
                 RadioView(),
             )
