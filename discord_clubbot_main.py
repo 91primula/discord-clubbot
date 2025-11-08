@@ -339,7 +339,7 @@ RADIO_STATIONS = {
     'mbcfm4u': 'https://example.com/mbcfm4u_stream',
     'sbs러브fm': 'https://example.com/sbs_love_stream',
     'sbs파워fm': 'https://example.com/sbs_power_stream',
-    'cbs음악fm': 'https://example.com/cbs_music_stream',
+    'cbs음악fm': 'https://m-aac.cbs.co.kr/mweb_cbs939/_definst_/cbs939.stream/chunklist.m3u8',
 }
 
 YTDL_OPTS = {
