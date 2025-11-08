@@ -50,6 +50,12 @@ if (not YTDLP_COOKIES) and YTDLP_COOKIES_CONTENT:
         f.write(YTDLP_COOKIES_CONTENT)
     YTDLP_COOKIES = "cookies.txt"
 
+print("[YTDLP] YTDLP_COOKIES:", YTDLP_COOKIES)
+if YTDLP_COOKIES and os.path.exists(YTDLP_COOKIES):
+    print("[YTDLP] cookies file FOUND and will be used")
+else:
+    print("[YTDLP] NO valid cookies file detected - yt-dlp will run WITHOUT login")
+
 # ────────────────────────────────
 # 📻 라디오 URL
 # ────────────────────────────────
@@ -83,7 +89,7 @@ def build_ytdlp_opts() -> dict:
     opts = {
         "format": "bestaudio/best",
         "quiet": True,
-        "noplaylist": True,          # 재생리스트/큐 비활성화
+        "noplaylist": True,
         "default_search": "ytsearch",
         "cachedir": False,
         "nocheckcertificate": True,
@@ -93,6 +99,9 @@ def build_ytdlp_opts() -> dict:
     }
     if YTDLP_COOKIES and os.path.exists(YTDLP_COOKIES):
         opts["cookiefile"] = YTDLP_COOKIES
+        print("[YTDLP] Using cookiefile:", YTDLP_COOKIES)
+    else:
+        print("[YTDLP] Not using any cookiefile")
     return opts
 
 
