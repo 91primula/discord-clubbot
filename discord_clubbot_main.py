@@ -40,6 +40,14 @@ PROMOTE_CODE = os.getenv("PROMOTE_CODE", "021142")
 JOIN_ROLE_NAME = os.getenv("JOIN_ROLE_NAME", "클럽원")
 PROMOTE_ROLE_NAME = os.getenv("PROMOTE_ROLE_NAME", "쟁탈원")
 YTDLP_COOKIES = os.getenv("YTDLP_COOKIES")
+YTDLP_COOKIES_CONTENT = os.getenv("YTDLP_COOKIES_CONTENT")
+
+# YTDLP_COOKIES 경로가 없고, 내용 기반 Secret이 있다면 실행 시 cookies.txt 생성
+if (not YTDLP_COOKIES) and YTDLP_COOKIES_CONTENT:
+    with open("cookies.txt", "w", encoding="utf-8") as f:
+        f.write(YTDLP_COOKIES_CONTENT)
+    YTDLP_COOKIES = "cookies.txt"
+
 
 # ────────────────────────────────
 # 📻 라디오 URL
