@@ -373,13 +373,13 @@ class RadioView(View):
     def __init__(self):
         super().__init__(timeout=None)
         # 라디오 버튼
-        for r in ["mbc표준fm", "mbcfm4u", "sbs러브fm", "sbs파워fm", "cbs음악fm"]:
+        for r in ["📻mbc표준fm", "📻mbcfm4u", "📻sbs러브fm", "📻sbs파워fm", "📻cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
         # 유튜브 (단일 재생)
-        self.add_item(Button(label="YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
-        self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.success, custom_id="ytsearch"))
+        self.add_item(Button(label="🎧YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
+        self.add_item(Button(label="🎧YouTube 검색", style=discord.ButtonStyle.success, custom_id="ytsearch"))
         # 정지
-        self.add_item(Button(label="정지", style=discord.ButtonStyle.danger, custom_id="stop"))
+        self.add_item(Button(label="⛔정지", style=discord.ButtonStyle.danger, custom_id="stop"))
 
 # ────────────────────────────────
 # 🧠 버튼 인터랙션 핸들러
