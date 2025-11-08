@@ -360,7 +360,17 @@ async def on_inter(i: discord.Interaction):
         vc = i.guild.voice_client
         if vc:
             await vc.disconnect(force=True)
+
+        # 안내 메시지 보냄 (일반 메시지)
         await i.response.send_message("⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
+
+        # 5초 후, 이 메시지 삭제 + 해당 채널에서 핀 제외 전체 정리
+        try:
+            msg = await i.original_response()
+            asyncio.create_task(delete_later_and_purge(msg, 5))
+        except Exception:
+            pass
+
         return
 
     if cid in RADIO_URLS:
