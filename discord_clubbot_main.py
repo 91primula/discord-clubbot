@@ -254,7 +254,7 @@ async def delete_radio_messages_after_stop(channel: discord.TextChannel, delay: 
 # ────────────────────────────────
 
 class JoinModal(Modal, title="가입 인증"):
-    code = TextInput(label="가입코드", placeholder="운영진 또는 오픈톡방의 디스코드 인증코드를 입력하시오", required=True)
+    code = TextInput(label="가입코드", placeholder="오픈톡방 공지의 디스코드 가입코드를 입력하시오", required=True)
 
     async def on_submit(self, i: discord.Interaction):
         is_correct = (self.code.value.strip() == JOIN_CODE)
@@ -279,7 +279,7 @@ class JoinModal(Modal, title="가입 인증"):
 
 
 class PromoteModal(Modal, title="승급 인증"):
-    code = TextInput(label="승급코드", placeholder="운영진에게 승급 인증코드를 물어보고 입력하시오", required=True)
+    code = TextInput(label="승급코드", placeholder="운영진에게 승급코드를 물어보고 입력하시오", required=True)
 
     async def on_submit(self, i: discord.Interaction):
         is_correct = (self.code.value.strip() == PROMOTE_CODE)
@@ -304,7 +304,7 @@ class PromoteModal(Modal, title="승급 인증"):
 
 
 class YoutubeURLModal(Modal, title="YouTube URL 재생"):
-    url = TextInput(label="URL 입력", placeholder="https://www.youtube.com/watch?v=...", required=True)
+    url = TextInput(label="URL 입력", placeholder="재생하려는 음악의 YouTube URL을 입력하시오", required=True)
 
     async def on_submit(self, i: discord.Interaction):
         await i.response.defer(thinking=True)
@@ -337,7 +337,7 @@ class YoutubeSearchModal(Modal, title="YouTube 검색 재생"):
 class NicknameModal(Modal, title="서버 별명 변경"):
     new_nick = TextInput(
         label="새 별명",
-        placeholder="서버에서 사용할 별명을 입력하세요",
+        placeholder="텔즈 캐릭터명을 입력하시오",
         required=True,
         max_length=32,
     )
