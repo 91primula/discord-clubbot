@@ -373,7 +373,7 @@ class RadioView(View):
     def __init__(self):
         super().__init__(timeout=None)
         # 라디오 버튼
-        for r in ["📻mbc표준fm", "📻mbcfm4u", "📻sbs러브fm", "📻sbs파워fm", "📻cbs음악fm"]:
+        for r in ["mbc표준fm", "mbcfm4u", "sbs러브fm", "sbs파워fm", "cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
         # 유튜브 (단일 재생)
         self.add_item(Button(label="🎧YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
