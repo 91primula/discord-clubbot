@@ -69,12 +69,12 @@ else:
 # 📻 라디오 URL
 # ────────────────────────────────
 RADIO_URLS = {
-    "mbc표준fm": os.getenv("RADIO_MBC_STD_URL"),
-    "mbcfm4u": os.getenv("RADIO_MBC_FM4U_URL"),
-    "mbc올댓뮤직": os.getenv("RADIO_MBC_ALLTHATMUSIC_URL"),
-    "sbs러브fm": os.getenv("RADIO_SBS_LOVE_URL"),
-    "sbs파워fm": os.getenv("RADIO_SBS_POWER_URL"),
-    "cbs음악fm": os.getenv("RADIO_CBS_MUSIC_URL"),
+    "📻mbc표준fm": os.getenv("RADIO_MBC_STD_URL"),
+    "📻mbcfm4u": os.getenv("RADIO_MBC_FM4U_URL"),
+    "📻mbc올댓뮤직": os.getenv("RADIO_MBC_ALLTHATMUSIC_URL"),
+    "📻sbs러브fm": os.getenv("RADIO_SBS_LOVE_URL"),
+    "📻sbs파워fm": os.getenv("RADIO_SBS_POWER_URL"),
+    "📻cbs음악fm": os.getenv("RADIO_CBS_MUSIC_URL"),
 }
 # RADIO_URLS: Dict[str, str]
 
@@ -374,7 +374,7 @@ class RadioView(View):
     def __init__(self):
         super().__init__(timeout=None)
         # 라디오 버튼
-        for r in ["mbc표준fm", "mbcfm4u", "mbc올댓뮤직", "sbs러브fm", "sbs파워fm", "cbs음악fm"]:
+        for r in ["📻mbc표준fm", "📻mbcfm4u", "📻mbc올댓뮤직", "📻sbs러브fm", "📻sbs파워fm", "📻cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
         # 유튜브 (단일 재생)
         self.add_item(Button(label="🎧YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
