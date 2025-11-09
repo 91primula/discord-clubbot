@@ -510,10 +510,25 @@ async def connect_to_user_channel(inter: discord.Interaction) -> Optional[discor
         return None
 
     vc = inter.guild.voice_client
+
+    # 이미 연결돼 있고, 다른 채널에 있으면 이동
     if vc and vc.channel != user.voice.channel:
         await vc.move_to(user.voice.channel)
+
+    # 아직 안 들어가있으면 → self_deaf=True 로 접속 (헤드셋 닫힌 상태)
     if not vc:
-        vc = await user.voice.channel.connect()
+        vc = await user.voice.channel.connect(self_deaf=True)
+
+    # 혹시 이미 들어가 있는데 헤드셋이 열려 있으면 한번 더 강제로 닫고 싶다면 (선택사항)
+    try:
+        await vc.guild.change_voice_state(
+            channel=vc.channel,
+            self_deaf=True,
+            self_mute=False
+        )
+    except Exception:
+        pass
+
     return vc
 
 # ────────────────────────────────
