@@ -15,7 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libffi-dev \
     python3-dev \
+    ca-certificates \
+    curl unzip \
  && rm -rf /var/lib/apt/lists/*
+
+ # ---- Deno 설치 ----
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_INSTALL=/root/.deno
+ENV PATH=$DENO_INSTALL/bin:$PATH
 
 # 작업 디렉토리
 WORKDIR /app
