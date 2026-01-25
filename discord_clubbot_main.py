@@ -96,6 +96,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ────────────────────────────────
 
 def build_ytdlp_opts() -> dict:
+    js_runtime = os.getenv("YTDLP_JS_RUNTIME", "deno")  # deno 권장
     opts = {
         "format": "bestaudio/best",
         "quiet": True,
@@ -106,6 +107,22 @@ def build_ytdlp_opts() -> dict:
         "geo_bypass": True,
         "extract_flat": False,
         "retries": 3,
+
+        # ✅ EJS / JS 런타임 지정 (Docker에 deno 설치하면 안정화)
+        "js_runtimes": [js_runtime],
+
+        # ✅ 가끔 도움이 되는 우회(완치 아님): 클라이언트 변경
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"],
+            }
+        },
+
+        # ✅ 일부 환경에서 헤더가 도움 되는 경우가 있음(강제는 아님)
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0",
+        },
+        
     }
     if YTDLP_COOKIES and os.path.exists(YTDLP_COOKIES):
         opts["cookiefile"] = YTDLP_COOKIES
