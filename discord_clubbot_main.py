@@ -271,8 +271,8 @@ class RadioView(View):
         # 정지
         self.add_item(Button(label="⛔라디오 정지", style=discord.ButtonStyle.danger, custom_id="stop"))
         # 하리보(다른 음악봇) 명령어 안내/정리 버튼
-        self.add_item(Button(label="하리보 명령어 확인", style=discord.ButtonStyle.success, custom_id="haribocmd"))
-        self.add_item(Button(label="음성방 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
+        self.add_item(Button(label="🧸하리보 명령어 확인", style=discord.ButtonStyle.success, custom_id="haribocmd"))
+        self.add_item(Button(label="🗑️음성방 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
 
 # ────────────────────────────────
 # 🧠 버튼 인터랙션 핸들러
@@ -350,43 +350,7 @@ async def on_inter(i: discord.Interaction):
 # 🎵 재생 로직
 # ────────────────────────────────
 
-async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = None):
-    vc = await connect_to_user_channel(i)
-    if not vc:
-        return
 
-    stream = await ytdlp_extract_stream(url)
-
-    if not stream:
-        await send_or_followup(
-            i,
-            "⚠️ 유튜브 정보를 불러오지 못했습니다.\n"
-            "이미지만 있는 영상이거나, 지원되지 않는 형식일 수 있어요.",
-            ephemeral=True,
-        )
-        return
-
-    if stream == "LOGIN_REQUIRED":
-        await send_or_followup(
-            i,
-            "⚠️ 로그인(쿠키)이 필요한 영상입니다. cookies.txt 설정을 확인해주세요.",
-            ephemeral=True,
-        )
-        return
-
-    item_title = title or url
-
-    if vc.is_playing():
-        vc.stop()
-
-    src = discord.FFmpegPCMAudio(
-        stream,
-        before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-        options="-vn",
-    )
-    vc.play(src)
-
-    await send_or_followup(i, f"🎵 재생 시작: {item_title}", ephemeral=False)
 
 
 async def radio_play(i: discord.Interaction, key: str):
@@ -490,12 +454,11 @@ async def on_ready():
                 "📡📻 라디오 채널별 버튼을 눌러 라디오를 듣거나📻\n"
                 " \n"
                 "📡🎧 유튜브 URL 기반 재생 or 검색(키워드) 기반으로 유튜브 음악을 바로 재생하세요.🎧\n"
-                "📡🎧 유튜브 URL 기반 재생 or 검색(키워드) 기반으로 유튜브 음악을 바로 재생하세요.🎧\n"
-                " \n"
-                "🎧!!play 제목 or YouTube 동영상 URL : 명령 실행시 바로 재생함\n"
-                "🎧!!search 제목 : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
-                "🎧!!clean : 하리보봇이 보낸 채팅 청소\n"
-                "🎧!!정지 : 재생중인거 정지하고 음성방에서 퇴장\n"
+                "🎶하리보 명령어 모음\n"
+                "!!play 제목 or YouTube 동영상 URL : 명령 실행시 바로 재생함\n"
+                "!!search 제목 : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
+                "!!clean : 하리보봇이 보낸 채팅 청소\n"
+                "!!정지 : 재생중인거 정지하고 음성방에서 퇴장\n"
                 "📡",
                 PIN_TAG_RADIO,
                 RadioView(),
