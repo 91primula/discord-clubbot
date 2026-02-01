@@ -1,6 +1,6 @@
 # ───────────────────────────────────────────────────────────
 # 🎛 Discord 통합 관리봇
-# (가입인증 + 승급인증 + 라디오/유튜브, 큐/재생리스트 제거 + yt_dlp 예외 처리)
+# (가입인증 + 승급인증 + 라디오/유튜브, 큐/재생리스트 제거)
 # ───────────────────────────────────────────────────────────
 # ⚙️ 필수 환경변수 (.env / Koyeb 환경 설정)
 # DISCORD_TOKEN=봇토큰
@@ -12,8 +12,6 @@
 # PROMOTE_CODE=021142
 # JOIN_ROLE_NAME=클럽원
 # PROMOTE_ROLE_NAME=쟁탈원
-# YTDLP_COOKIES=cookies.txt              # (선택) 파일 경로 직접 지정 방식
-# YTDLP_COOKIES_CONTENT=쿠키내용전부     # (선택) Secret에 통으로 넣는 방식
 # ───────────────────────────────────────────────────────────
 
 import os
@@ -24,8 +22,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button, Modal, TextInput
-import yt_dlp
-
 # ────────────────────────────────
 # ✅ 환경변수 로드
 # ────────────────────────────────
@@ -41,29 +37,6 @@ PROMOTE_CODE = os.getenv("PROMOTE_CODE", "021142")
 JOIN_ROLE_NAME = os.getenv("JOIN_ROLE_NAME", "클럽원")
 PROMOTE_ROLE_NAME = os.getenv("PROMOTE_ROLE_NAME", "쟁탈원")
 
-YTDLP_COOKIES = os.getenv("YTDLP_COOKIES")
-YTDLP_COOKIES_CONTENT = os.getenv("YTDLP_COOKIES_CONTENT")
-
-# YTDLP_COOKIES가 없고, 내용 기반 Secret이 있다면 실행 시 cookies.txt 생성
-if (not YTDLP_COOKIES) and YTDLP_COOKIES_CONTENT:
-    try:
-        with open("cookies.txt", "w", encoding="utf-8") as f:
-            f.write(YTDLP_COOKIES_CONTENT)
-        YTDLP_COOKIES = "cookies.txt"
-    except Exception as e:
-        print("[YTDLP] ❌ Failed to write cookies.txt:", e)
-
-# 디버그 로그: 현재 쿠키 설정 상태
-print("[YTDLP] ENV YTDLP_COOKIES =", YTDLP_COOKIES)
-print(
-    "[YTDLP] ENV YTDLP_COOKIES_CONTENT length =",
-    len(YTDLP_COOKIES_CONTENT) if YTDLP_COOKIES_CONTENT else 0,
-)
-
-if YTDLP_COOKIES and os.path.exists(YTDLP_COOKIES):
-    print("[YTDLP] ✅ cookies file FOUND at", YTDLP_COOKIES)
-else:
-    print("[YTDLP] ❌ NO valid cookies file detected - yt-dlp will run WITHOUT login")
 
 # ────────────────────────────────
 # 📻 라디오 URL
@@ -90,89 +63,6 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# ────────────────────────────────
-# 🎵 yt-dlp Helper
-# ────────────────────────────────
-
-def build_ytdlp_opts() -> dict:
-    opts = {
-        "format": "bestaudio/best",
-        "quiet": True,
-        "noplaylist": True,
-        "default_search": "ytsearch",
-        "cachedir": False,
-        "nocheckcertificate": True,
-        "geo_bypass": True,
-        "extract_flat": False,
-        "retries": 3,
-    }
-    if YTDLP_COOKIES and os.path.exists(YTDLP_COOKIES):
-        opts["cookiefile"] = YTDLP_COOKIES
-        print("[YTDLP] ▶ Using cookiefile:", YTDLP_COOKIES)
-    else:
-        print("[YTDLP] ▶ Not using any cookiefile")
-    return opts
-
-
-async def ytdlp_extract_stream(url: str) -> Optional[str]:
-    """단일 영상/검색 결과에서 실제 오디오 스트림 URL 추출"""
-    loop = asyncio.get_running_loop()
-
-    def _extract() -> Optional[str]:
-        try:
-            with yt_dlp.YoutubeDL(build_ytdlp_opts()) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if not info:
-                    return None
-                if "entries" in info:
-                    info = info["entries"][0]
-                return info.get("url")
-        except yt_dlp.utils.DownloadError as e:
-            msg = str(e)
-            if ("Sign in to confirm" in msg
-                    or "Private video" in msg
-                    or "age-restricted" in msg):
-                return "LOGIN_REQUIRED"
-            return None
-        except Exception:
-            return None
-
-    return await loop.run_in_executor(None, _extract)
-
-
-async def ytdlp_search_first(query: str) -> Optional[Dict[str, str]]:
-    """
-    검색어로 유튜브 1개 찾기.
-    - 정상: {title, webpage_url}
-    - 로그인 필요: {"_login_required": "1"}
-    - 실패: None
-    """
-    loop = asyncio.get_running_loop()
-
-    def _search() -> Optional[Dict[str, str]]:
-        try:
-            q = f"ytsearch1:{query}"
-            with yt_dlp.YoutubeDL(build_ytdlp_opts()) as ydl:
-                info = ydl.extract_info(q, download=False)
-                if not info or not info.get("entries"):
-                    return None
-                e = info["entries"][0]
-                return {
-                    "title": e.get("title", "unknown"),
-                    "webpage_url": e.get("webpage_url"),
-                }
-        except yt_dlp.utils.DownloadError as e:
-            msg = str(e)
-            if ("Sign in to confirm" in msg
-                    or "Private video" in msg
-                    or "age-restricted" in msg):
-                return {"_login_required": "1"}
-            return None
-        except Exception:
-            return None
-
-    return await loop.run_in_executor(None, _search)
 
 # ────────────────────────────────
 # 🧩 공통 유틸
@@ -211,6 +101,35 @@ async def purge_non_pinned(channel: discord.TextChannel):
         check=lambda m: m.id not in pin_ids
     )
     print(f"[PURGE] {channel.name}: deleted {len(deleted)} messages (non-pinned)")
+
+async def cleanup_all_non_pinned(channel: discord.TextChannel) -> int:
+    """채널의 핀 고정 메시지를 제외하고 가능한 모든 메시지를 삭제합니다.
+    - bulk delete 제한(14일) 회피를 위해 개별 삭제를 시도합니다.
+    - 권한/오래된 메시지/고정 메시지는 건너뛰거나 실패할 수 있습니다.
+    반환: 삭제 시도 성공 개수
+    """
+    pins = await channel.pins()
+    pin_ids = {m.id for m in pins}
+    deleted_count = 0
+    # 최근 메시지부터 삭제
+    async for msg in channel.history(limit=None, oldest_first=False):
+        if msg.id in pin_ids:
+            continue
+        try:
+            await msg.delete()
+            deleted_count += 1
+            # 레이트리밋 완화
+            if deleted_count % 20 == 0:
+                await asyncio.sleep(1)
+        except discord.Forbidden:
+            print("[CLEANUP] ❌ 메시지 삭제 권한이 없습니다. (MANAGE_MESSAGES)")
+            break
+        except discord.HTTPException:
+            # 삭제 불가 메시지(권한/기간/기타) 등은 스킵
+            continue
+        except Exception:
+            continue
+    return deleted_count
 
 async def delete_non_pinned_after_delay(channel: discord.TextChannel, delay: int = 5):
     """
@@ -318,39 +237,6 @@ class PromoteModal(Modal, title="승급 인증"):
                 pass
 
 
-class YoutubeURLModal(Modal, title="YouTube URL"):
-    url = TextInput(
-        label="YouTube URL",
-        placeholder="재생하려는 음악의 YouTube URL을 입력하시오",
-        required=True
-    )
-
-    async def on_submit(self, i: discord.Interaction):
-        # 1) 인터랙션 응답(팝업 제출 처리)
-        await i.response.send_message("✅ 요청을 전송했어요.", ephemeral=True)
-
-        # 2) 채널에 명령 메시지 남기기
-        try:
-            await i.channel.send(f"!!play {self.url.value.strip()}")
-        except Exception as e:
-            print("[YT_CMD] URL send failed:", e)
-
-
-class YoutubeSearchModal(Modal, title="YouTube 검색"):
-    q = TextInput(
-        label="노래 제목 또는 키워드",
-        placeholder="노래 제목 또는 키워드",
-        required=True
-    )
-
-    async def on_submit(self, i: discord.Interaction):
-        await i.response.send_message("✅ 요청을 전송했어요.", ephemeral=True)
-
-        try:
-            await i.channel.send(f"!!search {self.q.value.strip()}")
-        except Exception as e:
-            print("[YT_CMD] Search send failed:", e)
-
 
 class NicknameModal(Modal, title="서버 별명 변경"):
     new_nick = TextInput(
@@ -393,10 +279,9 @@ class RadioView(View):
         # 라디오 버튼
         for r in ["📻mbc표준fm", "📻mbcfm4u", "📻mbc올댓뮤직", "📻sbs러브fm", "📻sbs파워fm", "📻cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
-        # 유튜브 명령 전송 버튼 (다른 음악봇용)
-        self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.success, custom_id="ytsearch"))
-        self.add_item(Button(label="YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
-        self.add_item(Button(label="YouTube 정지", style=discord.ButtonStyle.danger, custom_id="ytstop"))
+        # 하리보(다른 음악봇) 명령어 안내/정리 버튼
+        self.add_item(Button(label="하리보 명령어 확인", style=discord.ButtonStyle.secondary, custom_id="haribocmd"))
+        self.add_item(Button(label="음성방 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
         # 정지
         self.add_item(Button(label="⛔정지", style=discord.ButtonStyle.danger, custom_id="stop"))
 
@@ -423,26 +308,31 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(NicknameModal())
         return
 
-    if cid == "yturl":
-        await i.response.send_modal(YoutubeURLModal())
-        return
-
-    if cid == "ytsearch":
-        await i.response.send_modal(YoutubeSearchModal())
-        return
-
-    if cid == "ytstop":
-        # 채널에 정지 명령 남기기
-        await i.response.send_message("✅ 정지 명령을 전송했어요.", ephemeral=True)
+    if cid == "haribocmd":
+        # 하리보 명령어 안내 메시지 남기기
+        await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
+        guide = (
+            "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
+            "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
+            "!!clean : 봇이 보낸 채팅 청소\n"
+            "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
+        )
         try:
-            await i.channel.send("!!정지")
+            await i.channel.send(guide)
         except Exception as e:
-            print("[YT_CMD] Stop send failed:", e)
+            print("[HARIBO] guide send failed:", e)
+        return
 
-        # 5초 뒤 핀 제외 전체 삭제
+    if cid == "voice_clean":
+        # 해당 채널에서 핀 고정 메시지를 제외하고 모두 삭제
+        # (ephemeral 메시지는 채널 메시지가 아니라 삭제 대상이 아닙니다)
+        await i.response.defer(ephemeral=True, thinking=True)
         channel = i.channel
         if isinstance(channel, discord.TextChannel):
-            asyncio.create_task(delete_non_pinned_after_delay(channel, 5))
+            deleted = await cleanup_all_non_pinned(channel)
+            await send_or_followup(i, f"🧹 정리 완료! (핀 제외) 삭제 시도: {deleted}개", ephemeral=True)
+        else:
+            await send_or_followup(i, "❌ 이 버튼은 텍스트 채널에서만 사용할 수 있어요.", ephemeral=True)
         return
 
     if cid == "stop":
