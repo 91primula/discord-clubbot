@@ -297,31 +297,44 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(NicknameModal())
         return
 
-    if cid == "haribocmd":
-        # 하리보 명령어 안내 메시지 남기기
-        await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
-        guide = (
-            "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
-            "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
-            "!!clean : 봇이 보낸 채팅 청소\n"
-            "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
-        )
-        try:
-            await i.channel.send(guide)
-        except Exception as e:
-            print("[HARIBO] guide send failed:", e)
-        return
+if cid == "haribocmd":
+    # 안내(ephemeral) 없이 조용히 처리
+    await i.response.defer(ephemeral=True)
+
+    guide = (
+        "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
+        "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
+        "!!clean : 봇이 보낸 채팅 청소\n"
+        "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
+    )
+    try:
+        await i.channel.send(guide)
+    except Exception as e:
+        print("[HARIBO] guide send failed:", e)
+
+    # defer로 생긴 ephemeral 응답 흔적(로딩)을 지우고 싶으면 아래 추가
+    try:
+        await i.delete_original_response()
+    except Exception:
+        pass
+
+    return
+
 
     if cid == "voice_clean":
-        # 해당 채널에서 핀 고정 메시지를 제외하고 모두 삭제
-        # (ephemeral 메시지는 채널 메시지가 아니라 삭제 대상이 아닙니다)
+        # 안내 메시지 없이 조용히 정리만 수행
         await i.response.defer(ephemeral=True, thinking=True)
+
         channel = i.channel
         if isinstance(channel, discord.TextChannel):
-            deleted = await cleanup_all_non_pinned(channel)
-            await send_or_followup(i, f"🧹 정리 완료! (핀 제외) 삭제 시도: {deleted}개", ephemeral=True)
-        else:
-            await send_or_followup(i, "❌ 이 버튼은 텍스트 채널에서만 사용할 수 있어요.", ephemeral=True)
+            await cleanup_all_non_pinned(channel)
+
+        # defer로 생긴 "thinking..."(ephemeral) 흔적 제거
+        try:
+            await i.delete_original_response()
+        except Exception:
+            pass
+
         return
 
     if cid == "stop":
