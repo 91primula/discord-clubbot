@@ -212,6 +212,20 @@ async def purge_non_pinned(channel: discord.TextChannel):
     )
     print(f"[PURGE] {channel.name}: deleted {len(deleted)} messages (non-pinned)")
 
+async def delete_non_pinned_after_delay(channel: discord.TextChannel, delay: int = 5):
+    """
+    delay초 후, 해당 채널에서 '핀 고정 메시지'를 제외하고 전부 삭제
+    """
+    await asyncio.sleep(delay)
+    if not isinstance(channel, discord.TextChannel):
+        return
+    try:
+        await purge_non_pinned(channel)
+    except discord.Forbidden:
+        print("[YT_CLEANUP] ❌ 메시지 삭제 권한이 없습니다. (MANAGE_MESSAGES 확인)")
+    except Exception as e:
+        print("[YT_CLEANUP] 오류:", e)
+
 
 async def delete_later_and_purge(msg: discord.Message, delay: int):
     """인증 안내/알림 메시지 delay초 뒤 삭제 + 채널 정리"""
@@ -304,35 +318,38 @@ class PromoteModal(Modal, title="승급 인증"):
                 pass
 
 
-class YoutubeURLModal(Modal, title="YouTube URL 재생"):
-    url = TextInput(label="URL 입력", placeholder="재생하려는 음악의 YouTube URL을 입력하시오", required=True)
+class YoutubeURLModal(Modal, title="YouTube URL"):
+    url = TextInput(
+        label="YouTube URL",
+        placeholder="재생하려는 음악의 YouTube URL을 입력하시오",
+        required=True
+    )
 
     async def on_submit(self, i: discord.Interaction):
-        await i.response.defer(thinking=True)
-        await play_youtube(i, self.url.value.strip())
+        # 1) 인터랙션 응답(팝업 제출 처리)
+        await i.response.send_message("✅ 요청을 전송했어요.", ephemeral=True)
+
+        # 2) 채널에 명령 메시지 남기기
+        try:
+            await i.channel.send(f"!!play {self.url.value.strip()}")
+        except Exception as e:
+            print("[YT_CMD] URL send failed:", e)
 
 
-class YoutubeSearchModal(Modal, title="YouTube 검색 재생"):
-    q = TextInput(label="검색어", placeholder="노래 제목 또는 키워드", required=True)
+class YoutubeSearchModal(Modal, title="YouTube 검색"):
+    q = TextInput(
+        label="노래 제목 또는 키워드",
+        placeholder="노래 제목 또는 키워드",
+        required=True
+    )
 
     async def on_submit(self, i: discord.Interaction):
-        await i.response.defer(thinking=True)
+        await i.response.send_message("✅ 요청을 전송했어요.", ephemeral=True)
 
-        found = await ytdlp_search_first(self.q.value.strip())
-        if not found:
-            await send_or_followup(i, "🔎 검색 결과를 찾지 못했습니다.", ephemeral=True)
-            return
-
-        if isinstance(found, dict) and found.get("_login_required") == "1":
-            await send_or_followup(
-                i,
-                "⚠️ 로그인(쿠키)이 필요한 영상만 검색되었습니다.\n"
-                "cookies.txt를 설정하거나, 다른 검색어/영상으로 시도해주세요.",
-                ephemeral=True,
-            )
-            return
-
-        await play_youtube(i, found["webpage_url"], title=found.get("title"))
+        try:
+            await i.channel.send(f"!!search {self.q.value.strip()}")
+        except Exception as e:
+            print("[YT_CMD] Search send failed:", e)
 
 
 class NicknameModal(Modal, title="서버 별명 변경"):
@@ -376,9 +393,10 @@ class RadioView(View):
         # 라디오 버튼
         for r in ["📻mbc표준fm", "📻mbcfm4u", "📻mbc올댓뮤직", "📻sbs러브fm", "📻sbs파워fm", "📻cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
-        # 유튜브 (단일 재생)
-        self.add_item(Button(label="🎧YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
-        self.add_item(Button(label="🎧YouTube 검색", style=discord.ButtonStyle.success, custom_id="ytsearch"))
+        # 유튜브 명령 전송 버튼 (다른 음악봇용)
+        self.add_item(Button(label="YouTube 검색", style=discord.ButtonStyle.success, custom_id="ytsearch"))
+        self.add_item(Button(label="YouTube URL", style=discord.ButtonStyle.success, custom_id="yturl"))
+        self.add_item(Button(label="YouTube 정지", style=discord.ButtonStyle.danger, custom_id="ytstop"))
         # 정지
         self.add_item(Button(label="⛔정지", style=discord.ButtonStyle.danger, custom_id="stop"))
 
@@ -411,6 +429,20 @@ async def on_inter(i: discord.Interaction):
 
     if cid == "ytsearch":
         await i.response.send_modal(YoutubeSearchModal())
+        return
+
+    if cid == "ytstop":
+        # 채널에 정지 명령 남기기
+        await i.response.send_message("✅ 정지 명령을 전송했어요.", ephemeral=True)
+        try:
+            await i.channel.send("!!정지")
+        except Exception as e:
+            print("[YT_CMD] Stop send failed:", e)
+
+        # 5초 뒤 핀 제외 전체 삭제
+        channel = i.channel
+        if isinstance(channel, discord.TextChannel):
+            asyncio.create_task(delete_non_pinned_after_delay(channel, 5))
         return
 
     if cid == "stop":
