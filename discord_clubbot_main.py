@@ -2,17 +2,6 @@
 # 🎛 Discord 통합 관리봇
 # (가입인증 + 승급인증 + 라디오/유튜브, 큐/재생리스트 제거)
 # ───────────────────────────────────────────────────────────
-# ⚙️ 필수 환경변수 (.env / Koyeb 환경 설정)
-# DISCORD_TOKEN=봇토큰
-# GUILD_ID=123456789012345678
-# CHANNEL_JOIN_ID=가입인증채널ID
-# CHANNEL_PROMOTE_ID=승급인증채널ID
-# CHANNEL_RADIO_ID=라디오채널ID
-# JOIN_CODE=241120
-# PROMOTE_CODE=021142
-# JOIN_ROLE_NAME=클럽원
-# PROMOTE_ROLE_NAME=쟁탈원
-# ───────────────────────────────────────────────────────────
 
 import os
 import asyncio
