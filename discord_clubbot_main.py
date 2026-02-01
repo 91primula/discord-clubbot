@@ -336,10 +336,10 @@ if cid == "haribocmd":
         "!!clean : 봇이 보낸 채팅 청소\n"
         "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
     )
-    try:
-        await i.channel.send(guide)
-    except Exception as e:
-        print("[HARIBO] guide send failed:", e)
+    #try:
+    #    await i.channel.send(guide)
+    #except Exception as e:
+    #    print("[HARIBO] guide send failed:", e)
 
     # defer로 생긴 ephemeral 응답 흔적(로딩)을 지우고 싶으면 아래 추가
     try:
