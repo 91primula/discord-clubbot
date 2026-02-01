@@ -271,8 +271,8 @@ class RadioView(View):
         # 정지
         self.add_item(Button(label="⛔라디오 정지", style=discord.ButtonStyle.danger, custom_id="stop"))
         # 하리보(다른 음악봇) 명령어 안내/정리 버튼
-        self.add_item(Button(label="🧸하리보 명령어 확인", style=discord.ButtonStyle.success, custom_id="haribocmd"))
-        self.add_item(Button(label="🗑️음성방 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
+        self.add_item(Button(label="하리보 명령어 확인", style=discord.ButtonStyle.success, custom_id="haribocmd"))
+        self.add_item(Button(label="음성방 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
 
 # ────────────────────────────────
 # 🧠 버튼 인터랙션 핸들러
@@ -297,59 +297,38 @@ async def on_inter(i: discord.Interaction):
         await i.response.send_modal(NicknameModal())
         return
 
-#    if cid == "voice_clean":
-#        # 해당 채널에서 핀 고정 메시지를 제외하고 모두 삭제
-#        # (ephemeral 메시지는 채널 메시지가 아니라 삭제 대상이 아닙니다)
-#        await i.response.defer(ephemeral=True, thinking=True)
-#        channel = i.channel
-#        if isinstance(channel, discord.TextChannel):
-#            deleted = await cleanup_all_non_pinned(channel)
-#            await send_or_followup(i, f"🧹 정리 완료! (핀 제외) 삭제 시도: {deleted}개", ephemeral=True)
-#        else:
-#            await send_or_followup(i, "❌ 이 버튼은 텍스트 채널에서만 사용할 수 있어요.", ephemeral=True)
-#            return
-
+    if cid == "haribocmd":
+        # 하리보 명령어 안내 메시지 남기기
+        await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
+        guide = (
+            "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
+            "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
+            "!!clean : 봇이 보낸 채팅 청소\n"
+            "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
+        )
+        try:
+            await i.channel.send(guide)
+        except Exception as e:
+            print("[HARIBO] guide send failed:", e)
+        return
 
     if cid == "voice_clean":
-        # 안내 메시지 없이 조용히 정리만 수행
-        await i.response.defer(ephemeral=True, thinking=True)
+        vc = i.guild.voice_client
+        if vc:
+            await vc.disconnect(force=True)
 
-        channel = i.channel
-        if isinstance(channel, discord.TextChannel):
-            await cleanup_all_non_pinned(channel)
-
-        # defer로 생긴 "thinking..."(ephemeral) 흔적 제거
+        # 안내 메시지 (성공/실패와 무관하게 정리 로직은 채널 기준으로 동작)
         try:
-            await i.delete_original_response()
+            await send_or_followup(i, "⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
         except Exception:
             pass
 
+        # 라디오 채널이라면 3초 뒤 핀 제외 전체 삭제
+        channel = i.channel
+        if isinstance(channel, discord.TextChannel):
+            asyncio.create_task(delete_radio_messages_after_stop(channel, 3))
+
         return
-
-#if cid == "haribocmd":
-    # 안내(ephemeral) 없이 조용히 처리
-    # await i.response.defer(ephemeral=True)
-
-    #guide = (
-    #    "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
-    #    "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
-    #    "!!clean : 봇이 보낸 채팅 청소\n"
-    #    "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
-    #)
-    #try:
-    #    await i.channel.send(guide)
-    #except Exception as e:
-    #    print("[HARIBO] guide send failed:", e)
-
-    # defer로 생긴 ephemeral 응답 흔적(로딩)을 지우고 싶으면 아래 추가
-    #try:
-    #    await i.delete_original_response()
-    #except Exception:
-    #    pass
-
-    #return
-
-    
 
     if cid == "stop":
         vc = i.guild.voice_client
@@ -377,7 +356,43 @@ async def on_inter(i: discord.Interaction):
 # 🎵 재생 로직
 # ────────────────────────────────
 
+async def play_youtube(i: discord.Interaction, url: str, title: Optional[str] = None):
+    vc = await connect_to_user_channel(i)
+    if not vc:
+        return
 
+    stream = await ytdlp_extract_stream(url)
+
+    if not stream:
+        await send_or_followup(
+            i,
+            "⚠️ 유튜브 정보를 불러오지 못했습니다.\n"
+            "이미지만 있는 영상이거나, 지원되지 않는 형식일 수 있어요.",
+            ephemeral=True,
+        )
+        return
+
+    if stream == "LOGIN_REQUIRED":
+        await send_or_followup(
+            i,
+            "⚠️ 로그인(쿠키)이 필요한 영상입니다. cookies.txt 설정을 확인해주세요.",
+            ephemeral=True,
+        )
+        return
+
+    item_title = title or url
+
+    if vc.is_playing():
+        vc.stop()
+
+    src = discord.FFmpegPCMAudio(
+        stream,
+        before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+        options="-vn",
+    )
+    vc.play(src)
+
+    await send_or_followup(i, f"🎵 재생 시작: {item_title}", ephemeral=False)
 
 
 async def radio_play(i: discord.Interaction, key: str):
@@ -481,11 +496,12 @@ async def on_ready():
                 "📡📻 라디오 채널별 버튼을 눌러 라디오를 듣거나📻\n"
                 " \n"
                 "📡🎧 유튜브 URL 기반 재생 or 검색(키워드) 기반으로 유튜브 음악을 바로 재생하세요.🎧\n"
-                "🎶하리보 명령어 모음\n"
-                "!!play 제목 or YouTube 동영상 URL : 명령 실행시 바로 재생함\n"
-                "!!search 제목 : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
-                "!!clean : 하리보봇이 보낸 채팅 청소\n"
-                "!!정지 : 재생중인거 정지하고 음성방에서 퇴장\n"
+                " \n"
+                "🧸하리보 명령어 모음🧸\n"
+                "🎧!!play 제목 or YouTube 동영상 URL : 명령 실행시 바로 재생함\n"
+                "🎧!!search 제목 : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
+                "🎧!!clean : 하리보봇이 보낸 채팅 청소\n"
+                "🎧!!정지 : 재생중인거 정지하고 음성방에서 퇴장\n"
                 "📡",
                 PIN_TAG_RADIO,
                 RadioView(),
