@@ -299,7 +299,7 @@ async def on_inter(i: discord.Interaction):
 
     if cid == "haribocmd":
         # 하리보 명령어 안내 메시지 남기기
-        await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
+######### await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
         guide = (
             "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
             "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
@@ -319,9 +319,9 @@ async def on_inter(i: discord.Interaction):
         channel = i.channel
         if isinstance(channel, discord.TextChannel):
             deleted = await cleanup_all_non_pinned(channel)
-            await send_or_followup(i, f"🧹 정리 완료! (핀 제외) 삭제 시도: {deleted}개", ephemeral=True)
+########### await send_or_followup(i, f"🧹 정리 완료! (핀 제외) 삭제 시도: {deleted}개", ephemeral=True)
         else:
-            await send_or_followup(i, "❌ 이 버튼은 텍스트 채널에서만 사용할 수 있어요.", ephemeral=True)
+########### await send_or_followup(i, "❌ 이 버튼은 텍스트 채널에서만 사용할 수 있어요.", ephemeral=True)
         return
 
     if cid == "stop":
