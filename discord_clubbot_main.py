@@ -326,16 +326,16 @@ async def on_inter(i: discord.Interaction):
 
         return
 
-if cid == "haribocmd":
+#if cid == "haribocmd":
     # 안내(ephemeral) 없이 조용히 처리
     # await i.response.defer(ephemeral=True)
 
-    guide = (
-        "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
-        "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
-        "!!clean : 봇이 보낸 채팅 청소\n"
-        "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
-    )
+    #guide = (
+    #    "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
+    #    "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
+    #    "!!clean : 봇이 보낸 채팅 청소\n"
+    #    "!!정지 : 재생중인거 정지하고 음성방에서 퇴장"
+    #)
     #try:
     #    await i.channel.send(guide)
     #except Exception as e:
@@ -347,7 +347,7 @@ if cid == "haribocmd":
     #except Exception:
     #    pass
 
-    return
+    #return
 
     
 
