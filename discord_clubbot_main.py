@@ -342,10 +342,10 @@ if cid == "haribocmd":
     #    print("[HARIBO] guide send failed:", e)
 
     # defer로 생긴 ephemeral 응답 흔적(로딩)을 지우고 싶으면 아래 추가
-    try:
-        await i.delete_original_response()
-    except Exception:
-        pass
+    #try:
+    #    await i.delete_original_response()
+    #except Exception:
+    #    pass
 
     return
 
