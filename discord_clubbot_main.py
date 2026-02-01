@@ -299,6 +299,7 @@ async def on_inter(i: discord.Interaction):
 
     if cid == "haribocmd":
         # 하리보 명령어 안내 메시지 남기기
+            await send_or_followup(i, "✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=False)
 ######### await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
         guide = (
             "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
