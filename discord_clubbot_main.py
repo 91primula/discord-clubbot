@@ -328,7 +328,7 @@ async def on_inter(i: discord.Interaction):
 
 if cid == "haribocmd":
     # 안내(ephemeral) 없이 조용히 처리
-    await i.response.defer(ephemeral=True)
+    # await i.response.defer(ephemeral=True)
 
     guide = (
         "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
