@@ -319,9 +319,9 @@ async def on_inter(i: discord.Interaction):
         channel = i.channel
         if isinstance(channel, discord.TextChannel):
             deleted = await cleanup_all_non_pinned(channel)
-########### await send_or_followup(i, f"🧹 정리 완료! (핀 제외) 삭제 시도: {deleted}개", ephemeral=True)
+            await send_or_followup(i, f"🧹 정리 완료! (핀 제외) 삭제 시도: {deleted}개", ephemeral=True)
         else:
-########### await send_or_followup(i, "❌ 이 버튼은 텍스트 채널에서만 사용할 수 있어요.", ephemeral=True)
+            await send_or_followup(i, "❌ 이 버튼은 텍스트 채널에서만 사용할 수 있어요.", ephemeral=True)
         return
 
     if cid == "stop":
