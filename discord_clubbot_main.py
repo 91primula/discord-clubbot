@@ -268,11 +268,11 @@ class RadioView(View):
         # 라디오 버튼
         for r in ["📻mbc표준fm", "📻mbcfm4u", "📻mbc올댓뮤직", "📻sbs러브fm", "📻sbs파워fm", "📻cbs음악fm"]:
             self.add_item(Button(label=f"{r}", style=discord.ButtonStyle.primary, custom_id=r))
-        # 정지
-        self.add_item(Button(label="⛔라디오 정지", style=discord.ButtonStyle.danger, custom_id="stop"))
         # 하리보(다른 음악봇) 명령어 안내/정리 버튼
         self.add_item(Button(label="하리보 명령어 확인", style=discord.ButtonStyle.success, custom_id="haribocmd"))
         self.add_item(Button(label="음성방 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
+        # 정지
+        self.add_item(Button(label="⛔라디오 정지", style=discord.ButtonStyle.danger, custom_id="stop"))
 
 # ────────────────────────────────
 # 🧠 버튼 인터랙션 핸들러
