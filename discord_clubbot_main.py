@@ -271,8 +271,8 @@ class RadioView(View):
         # 정지
         self.add_item(Button(label="⛔라디오 정지", style=discord.ButtonStyle.danger, custom_id="stop"))
         # 하리보(다른 음악봇) 명령어 안내/정리 버튼
-        self.add_item(Button(label="하리보 명령어 확인", style=discord.ButtonStyle.success, custom_id="haribocmd"))
-        self.add_item(Button(label="음성방 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
+        self.add_item(Button(label="🧸하리보 명령어 확인", style=discord.ButtonStyle.success, custom_id="haribocmd"))
+        self.add_item(Button(label="❌🗑️메시지 정리", style=discord.ButtonStyle.danger, custom_id="voice_clean"))
 
 # ────────────────────────────────
 # 🧠 버튼 인터랙션 핸들러
@@ -299,7 +299,7 @@ async def on_inter(i: discord.Interaction):
 
     if cid == "haribocmd":
         # 하리보 명령어 안내 메시지 남기기
-        await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
+        #await i.response.send_message("✅ 하리보 명령어 안내를 채널에 남겼어요.", ephemeral=True)
         guide = (
             "!!play \"제목\" or \"YouTube 동영상 URL\" : 명령 실행시 바로 재생함\n"
             "!!search \"제목\" : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
@@ -319,7 +319,7 @@ async def on_inter(i: discord.Interaction):
 
         # 안내 메시지 (성공/실패와 무관하게 정리 로직은 채널 기준으로 동작)
         try:
-            await send_or_followup(i, "⛔ 재생을 정지하고 음성 채널에서 나갔습니다.", ephemeral=False)
+            await send_or_followup(i, "❌🗑️ 음성 채널에 메시지를 정리합니다.", ephemeral=False)
         except Exception:
             pass
 
@@ -498,10 +498,10 @@ async def on_ready():
                 "📡🎧 유튜브 URL 기반 재생 or 검색(키워드) 기반으로 유튜브 음악을 바로 재생하세요.🎧\n"
                 " \n"
                 "🧸하리보 명령어 모음🧸\n"
-                "🎧!!play 제목 or YouTube 동영상 URL : 명령 실행시 바로 재생함\n"
-                "🎧!!search 제목 : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
-                "🎧!!clean : 하리보봇이 보낸 채팅 청소\n"
-                "🎧!!정지 : 재생중인거 정지하고 음성방에서 퇴장\n"
+                "!!play 제목 or YouTube 동영상 URL    : 명령 실행시 바로 재생함\n"
+                "!!search 제목                       : 명령 실행 후 관련 동영상 목록을 보여줌(선택 재생)\n"
+                "!!clean                             : 하리보봇이 보낸 채팅 청소\n"
+                "!!정지                              : 재생중인거 정지하고 음성방에서 퇴장\n"
                 "📡",
                 PIN_TAG_RADIO,
                 RadioView(),
