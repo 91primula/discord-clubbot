@@ -312,7 +312,7 @@ async def on_inter(i: discord.Interaction):
                 "!!바이브차트 <1~100 사이 숫자>   : 바이브차트 1등부터 선택한 숫자 사이의 곡 재생\n"
                 "!!정지                                                     : 재생중인거 정지하고 음성방에서 퇴장\n"
                 "!!청소                                                     : 하리보봇이 보낸 채팅 청소\n"
-                "🎶",
+                "🎶"
         )
         try:
             await i.channel.send(guide)
